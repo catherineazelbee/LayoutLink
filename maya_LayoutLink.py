@@ -322,29 +322,15 @@ class ExportManager:
 # SIMPLE UI FOR LAYOUT ARTISTS
 # ============================================================================
 
-class LayoutLinkUI(QtWidgets.QDialog):
+class LayoutLinkUI(QtWidgets.QWidget):  # Changed from QDialog to QWidget!
     """
     Simple, artist-friendly UI for pushing/pulling USD data.
     Big clear buttons, minimal technical jargon.
     """
     
     def __init__(self, parent=None):
-        # Get Maya's main window as parent
-        if parent is None:
-            parent = self.get_maya_main_window()
-        
         super().__init__(parent)
-        
-        self.setWindowTitle("LayoutLink - Maya to Unreal")
-        self.setMinimumWidth(400)
-        
         self.setup_ui()
-    
-    @staticmethod
-    def get_maya_main_window():
-        """Get Maya's main window as a QWidget"""
-        ptr = omui.MQtUtil.mainWindow()
-        return wrapInstance(int(ptr), QtWidgets.QWidget)
     
     def setup_ui(self):
         """Create all the UI elements"""
@@ -585,27 +571,98 @@ class LayoutLinkUI(QtWidgets.QDialog):
 
 def show_ui():
     """
-    Show the LayoutLink UI.
-    This is what artists will run!
+    Create (or recreate) a single dockable WorkspaceControl and build the UI under it.
+    No uiScript. No double-spawn.
+    """
+    workspace_name = "LayoutLinkWorkspace"  # keep your existing id for compatibility
+
+    # nuke any prior instance (like your EasyBlink does)
+    if cmds.workspaceControl(workspace_name, q=True, exists=True):
+        cmds.deleteUI(workspace_name, control=True)
+
+    # create a fresh dockable control (floating by default; easy to dock)
+    wc = cmds.workspaceControl(
+        workspace_name,
+        label="LayoutLink",
+        dockToMainWindow=("right", 1),   # similar to your EasyBlink example
+        initialWidth=450,
+        initialHeight=650,
+        retain=False,
+        floating=True
+    )
+
+    # immediately build the UI once (no uiScript callback)
+    _build_ui()
+
+    return wc
+
+def _build_ui():
+    workspace_name = "LayoutLinkWorkspace"
+
+    workspace_ptr = omui.MQtUtil.findControl(workspace_name)
+    if not workspace_ptr:
+        return
+
+    workspace_widget = wrapInstance(int(workspace_ptr), QtWidgets.QWidget)
+
+    if workspace_widget.layout() is None:
+        workspace_widget.setLayout(QtWidgets.QVBoxLayout())
+    layout = workspace_widget.layout()
+
+    # prevent duplicates
+    if workspace_widget.findChild(LayoutLinkUI):
+        return
+
+    layout_link_ui = LayoutLinkUI(parent=workspace_widget)
+    # ensure it embeds instead of popping a separate top-level window
+    try:
+        layout_link_ui.setWindowFlags(QtCore.Qt.Widget)
+    except Exception:
+        pass
+
+    layout.addWidget(layout_link_ui)
+
+def close_ui():
+    if cmds.workspaceControl("LayoutLinkWorkspace", q=True, exists=True):
+        cmds.deleteUI("LayoutLinkWorkspace", control=True)
+
+
+def create_shelf_button():
+    """
+    Automatically create a shelf button for LayoutLink.
+    Run this ONCE to add the button to the current shelf.
     
     Example:
         import maya_LayoutLink as mll
-        mll.show_ui()
+        mll.create_shelf_button()
     """
-    global layoutlink_window
+    # Get the current shelf
+    current_shelf = mel.eval('$tempVar = $gShelfTopLevel')
+    shelves = cmds.tabLayout(current_shelf, query=True, childArray=True)
+    current_shelf_tab = cmds.tabLayout(current_shelf, query=True, selectTab=True)
     
-    # Close existing window if it exists
-    try:
-        layoutlink_window.close()
-        layoutlink_window.deleteLater()
-    except:
-        pass
+    # Button command
+    command = """import maya_LayoutLink as mll
+mll.show_ui()"""
     
-    # Create and show new window
-    layoutlink_window = LayoutLinkUI()
-    layoutlink_window.show()
+    # Create the shelf button
+    button = cmds.shelfButton(
+        parent=current_shelf_tab,
+        label="LayoutLink",
+        annotation="Open LayoutLink - Export layout to Unreal Engine",
+        image="UVEditorSnapshot.png",  # Maya's built-in icon
+        command=command,
+        sourceType="python"
+    )
     
-    return layoutlink_window
+    print(f"\n{'='*60}")
+    print("Shelf button created!")
+    print(f"{'='*60}")
+    print("\nThe 'LayoutLink' button is now on your shelf.")
+    print("Layout artists can click it to open the tool.")
+    print(f"{'='*60}\n")
+    
+    return button
 
 
 # ============================================================================
@@ -624,6 +681,10 @@ print("\n" + "="*60)
 print("MAYA LAYOUTLINK v0.1.0")
 print("="*60)
 print("\nTo open the UI:")
-print("  import maya_LayoutLink as mll")
-print("  mll.show_ui()")
+print("import maya_LayoutLink as mll")
+print("mll.show_ui()")
 print()
+
+if __name__ == "__main__":
+    show_ui()
+
