@@ -25,9 +25,22 @@ import maya.cmds as cmds
 import maya.mel as mel
 import maya.api.OpenMaya as om2
 
-# PySide2 for UI
-from PySide2 import QtWidgets, QtCore, QtGui
-from shiboken2 import wrapInstance
+# PySide imports - Support both Maya 2025 (PySide6) and Maya 2022-2024 (PySide2)
+try:
+    # Try PySide6 first (Maya 2025+)
+    from PySide6 import QtWidgets, QtCore, QtGui
+    from shiboken6 import wrapInstance
+    print("LayoutLink: Using PySide6 (Maya 2025+)")
+except ImportError:
+    try:
+        # Fall back to PySide2 (Maya 2022-2024)
+        from PySide2 import QtWidgets, QtCore, QtGui
+        from shiboken2 import wrapInstance
+        print("LayoutLink: Using PySide2 (Maya 2022-2024)")
+    except ImportError:
+        print("ERROR: Neither PySide6 nor PySide2 found!")
+        raise
+
 import maya.OpenMayaUI as omui
 
 # USD imports
@@ -81,7 +94,7 @@ class Config:
         if not os.path.exists(path):
             os.makedirs(path)
         return path
-    
+
 # ============================================================================
 # METADATA MANAGER
 # ============================================================================
@@ -109,10 +122,10 @@ class MetadataManager:
             return False
 
         try:
-            # open the usd layer
+            # Open the USD layer
             layer = Sdf.Layer.FindOrOpen(usd_file_path)
             if not layer:
-                print (f"Could not open USD layer: {usd_file_path}")
+                print(f"Could not open USD layer: {usd_file_path}")
                 return False
 
             # Get or create customLayerData dictionary
@@ -128,7 +141,7 @@ class MetadataManager:
             layer.customLayerData = custom_data
             layer.Save()
 
-            print(f"✓ Added metadata to: {os.path.basename(usd_file_path)}")
+            print(f"Added metadata to: {os.path.basename(usd_file_path)}")
             return True
 
         except Exception as e:
@@ -137,38 +150,37 @@ class MetadataManager:
         
     @staticmethod
     def read_metadata(usd_file_path):
-            """
-            Read LayoutLink metadata from a USD file
+        """
+        Read LayoutLink metadata from a USD file
 
-            Args: 
-                usd_file_path (str): Path to the USD file
+        Args: 
+            usd_file_path (str): Path to the USD file
+        
+        Returns:
+            dict: Metadata dictionary, or None if not found
+        """
+        if not os.path.exists(usd_file_path):
+            return None
+
+        try:
+            layer = Sdf.Layer.FindOrOpen(usd_file_path)
+            if not layer:
+                return None
             
-            Returns:
-                dict: Metadata dictionary, or None if not found
-            """
+            custom_data = layer.customLayerData
 
-            if not os.path.exists(usd_file_path):
-                return None
+            # Extract LayoutLink metadata
+            metadata = {}
+            for key in [Config.META_TIMESTAMP, Config.META_ARTIST,
+                        Config.META_APP, Config.META_OPERATION, Config.META_VERSION]:
+                if key in custom_data:
+                    metadata[key] = custom_data[key]
 
-            try:
-                layer = Sdf.Layer.FindOrOpen(usd_file_path)
-                if not layer:
-                    return None
-                
-                custom_data = layer.customLayerData
+            return metadata if metadata else None
 
-                # Extract LayoutLink metadata
-                metadata = {}
-                for key in [Config.META_TIMESTAMP, Config.META_ARTIST,
-                            Config.META_APP, Config.META_OPERATION, Config.META_VERSION]:
-                        if key in custom_data:
-                            metadata[key] = custom_data[key]
-
-                return metadata if metadata else None
-
-            except Exception as e:
-                print(f"Error reading metadata: {e}")
-                return None
+        except Exception as e:
+            print(f"Error reading metadata: {e}")
+            return None
 
     @staticmethod
     def print_metadata(usd_file_path):
@@ -178,7 +190,6 @@ class MetadataManager:
         Args:
             usd_file_path (str): Path to the USD file
         """
-
         metadata = MetadataManager.read_metadata(usd_file_path)
 
         if not metadata:
@@ -194,86 +205,85 @@ class MetadataManager:
         print(f"Version: {metadata.get(Config.META_VERSION, 'N/A')}")
         print(f"===========================\n")
 
-    # ============================================================================
-    # EXPORT MANAGER
-    # ============================================================================
+# ============================================================================
+# EXPORT MANAGER
+# ============================================================================
 
-    class ExportManager:
+class ExportManager:
+    """
+    Handles exporting Maya content to USD files.
+    Core functionality for sending data to Unreal.
+    """
+
+    @staticmethod
+    def export_selected(output_path, export_animation=False, 
+                        start_frame=None, end_frame=None):
         """
-        Handles exporting Maya content to USD files.
-        Core functionality for sending data to Unreal.
+        Export currently selected Maya objects to a USD file.
+
+        Args:
+            output_path (str): Where to save the USD file
+            export_animation (bool): Whether to export animation
+            start_frame (int): Animation start frame
+            end_frame (int): Animation end frame
+
+        Returns:
+            bool: True if export succeeded
         """
+        # Check if anything is selected
+        selection = cmds.ls(selection=True, long=True)
+        if not selection:
+            print("ERROR: Nothing selected to export")
+            cmds.warning("Please select objects to export")
+            return False
+        
+        print(f"\n=== Exporting to USD ===")
+        print(f"Selected objects: {len(selection)}")
+        print(f"Output: {output_path}")
 
-        @staticmethod
-        def export_selected(output_path, export_animation=False, 
-                            start_frame=None, end_frame=None):
-            """
-            Export currently selected Maya objects to a USD file.
+        # Build export options
+        export_options = {
+            'file': output_path,
+            'selection': True,
+            'shadingMode': 'useRegistry',
+            'convertMaterialsTo': ['UsdPreviewSurface'],
+            'exportInstances': True,
+            'mergeTransformAndShape': True,
+            'exportDisplayColor': True,
+            'exportUVs': True,
+            'exportVisibility': True,
+        }
 
-            Args:
-                output_path (str): Where to save the USD file
-                export_animation (bool): Whether to export animation
-                start_frame(int):Animation start frame
-                end_frame (int): Animation end frame
-
-            Returns:
-                bool: True if export succeeded
-            """
-
-            #Check if anything is selected
-            selection = cmds.ls(selection=True, long=True)
-            if not selection:
-                print("ERROR: Nothing selected to export")
-                cmds.warning("Please select objects to export")
-                return False
+        # Add animation options if requested
+        if export_animation:
+            if start_frame is None:
+                start_frame = int(cmds.playbackOptions(q=True, min=True))
+            if end_frame is None:
+                end_frame = int(cmds.playbackOptions(q=True, max=True))
             
-            print(f"\n=== Exporting to USD ===")
-            print(f"Selected objects: {len(selection)}")
-            print(f"Output: {output_path}")
+            export_options['animation'] = True
+            export_options['frameRange'] = (start_frame, end_frame)
+            export_options['eulerFilter'] = True
 
-            # Build export options
-            export_options = {
-                'file': output_path,
-                'selection': True,
-                'shadingMode': 'useRegistry', #Export materials
-                'convertMaterialsTo': ['UsdPreviewSurface'],
-                'exportInstances': True,
-                'mergeTransformAndShape': True,
-                'exportDisplayColor': True,
-                'exportUVs': True,
-                'exportVisibility': True,
-            }
+            print(f"Animation: Frames {start_frame} to {end_frame}")
 
-            # Add animation options if requested
-            if export_animation:
-                if start_frame is None:
-                    start_frame = int(cmds.playbackOptions(q=True, min=True))
-                if end_frame is None:
-                    end_frame = int(cmds.playbackOptions(q=True, max=True))
-                
-                export_options['animation'] = True
-                export_options['frameRange'] = (start_frame, end_frame)
-                export_options['eulerFilter'] = True # Smooth rotation curves
+        # Perform the export
+        try: 
+            cmds.mayaUSDExport(**export_options)
+            print(f"Export successful!")
+            print(f"========================\n")
 
-                print(f"Animation: Frames {start_frame} to {end_frame}")
+            # Add the metadata to the exported file
+            MetadataManager.add_metadata(output_path, operation="maya_export")
 
-                # Perform the export
-                try: 
-                    cmds.mayaUSDExport(**export_options)
-                    print(f"✓ Export successful!")
-                    print(f"========================\n")
+            return True
 
-                    # Add the metadata to the exported file
-                    MetadataManager.add_metadata(output_path, operation="maya_export")
-
-                    return True
-
-                except Exception as e:
-                    print(f"✗ Export failed: {e}")
-                    print(f"========================\n")
-                    cmds.error(f"USD Export failed: {e}")
-                    return False
-            
+        except Exception as e:
+            print(f"Export failed: {e}")
+            print(f"========================\n")
+            cmds.error(f"USD Export failed: {e}")
+            return False
+    
     @staticmethod
     def export_cameras_only(output_path):
         """
@@ -286,7 +296,6 @@ class MetadataManager:
         Returns: 
             bool: True if successful
         """
-
         # Find all cameras (excluding default cameras)
         all_cameras = cmds.ls(type='camera', long=True)
         default_cameras = ['frontShape', 'perspShape', 'sideShape', 'topShape']
@@ -302,9 +311,9 @@ class MetadataManager:
                     user_cameras.extend(transform)
 
         if not user_cameras:
-            print("No user cameras for in scene")
+            print("No user cameras found in scene")
             return False
-            
+        
         # Select cameras and export
         cmds.select(user_cameras, replace=True)
         return ExportManager.export_selected(output_path, export_animation=False)
@@ -508,7 +517,7 @@ class LayoutLinkUI(QtWidgets.QDialog):
         )
         
         if success:
-            self.log("✓ Export successful!")
+            self.log("Export successful!")
             QtWidgets.QMessageBox.information(
                 self,
                 "Export Complete",
@@ -516,7 +525,7 @@ class LayoutLinkUI(QtWidgets.QDialog):
                 "You can now import this file in Unreal Engine."
             )
         else:
-            self.log("✗ Export failed")
+            self.log("Export failed")
             QtWidgets.QMessageBox.critical(
                 self,
                 "Export Failed",
@@ -603,6 +612,14 @@ def show_ui():
 # AUTO-LOAD MESSAGE
 # ============================================================================
 
+# Load Maya USD plugin if not already loaded
+if not cmds.pluginInfo('mayaUsdPlugin', q=True, loaded=True):
+    try:
+        cmds.loadPlugin('mayaUsdPlugin')
+        print("LayoutLink: Loaded Maya USD plugin")
+    except:
+        print("LayoutLink: Warning - Could not load Maya USD plugin")
+
 print("\n" + "="*60)
 print("MAYA LAYOUTLINK v0.1.0")
 print("="*60)
@@ -610,4 +627,3 @@ print("\nTo open the UI:")
 print("  import maya_LayoutLink as mll")
 print("  mll.show_ui()")
 print()
-                
