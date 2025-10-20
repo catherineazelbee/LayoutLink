@@ -58,7 +58,7 @@ class Config:
     UNREAL_EXPORT_DIR = "unreal_exports"
 
     # Metadata keys for tracking plugin-specific info
-    META_TIMESTAMP = "layouylink_timestamp"
+    META_TIMESTAMP = "layoutlink_timestamp"
     META_APP = "layoutlink_app"
     META_ARTIST = "layoutlink_artist"
     META_OPERATION = "layoutlink_operation"
@@ -264,7 +264,7 @@ class MetadataManager:
                     print(f"========================\n")
 
                     # Add the metadata to the exported file
-                    MetaDataManager.add_metadata(output_path, operation="maya_export")
+                    MetadataManager.add_metadata(output_path, operation="maya_export")
 
                     return True
 
@@ -301,13 +301,13 @@ class MetadataManager:
                 if transform:
                     user_cameras.extend(transform)
 
-            if not user_cameras:
-                print("No user cameras for in scene")
-                return False
+        if not user_cameras:
+            print("No user cameras for in scene")
+            return False
             
-            # Select cameras and export
-            cmds.select(user_cameras, replace=True)
-            return ExportManager.export_selected(output_path, export_animation=False)
+        # Select cameras and export
+        cmds.select(user_cameras, replace=True)
+        return ExportManager.export_selected(output_path, export_animation=False)
 
 # ============================================================================
 # SIMPLE UI FOR LAYOUT ARTISTS
