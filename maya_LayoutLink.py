@@ -664,6 +664,41 @@ mll.show_ui()"""
     
     return button
 
+def list_exported_files():
+    """
+    List all USD files that have been exported to the Maya export directory.
+    Shows file names, sizes, and metadata.
+    """
+    maya_dir = Config.get_maya_export_path()
+    
+    usd_files = []
+    for file in os.listdir(maya_dir):
+        if file.endswith(('.usd', '.usda', '.usdc')):
+            usd_files.append(file)
+    
+    if not usd_files:
+        print("\nNo USD files found in Maya export directory")
+        print(f"Location: {maya_dir}\n")
+        return
+    
+    print(f"\n{'='*60}")
+    print(f"EXPORTED USD FILES ({len(usd_files)})")
+    print(f"{'='*60}")
+    print(f"Location: {maya_dir}\n")
+    
+    for file in sorted(usd_files):
+        file_path = os.path.join(maya_dir, file)
+        size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        print(f"  • {file} ({size_mb:.2f} MB)")
+        
+        # Show metadata if available
+        metadata = MetadataManager.read_metadata(file_path)
+        if metadata:
+            timestamp = metadata.get(Config.META_TIMESTAMP, 'N/A')
+            artist = metadata.get(Config.META_ARTIST, 'N/A')
+            print(f"    Modified: {timestamp} by {artist}")
+    
+    print(f"{'='*60}\n")
 
 # ============================================================================
 # AUTO-LOAD MESSAGE
@@ -678,13 +713,14 @@ if not cmds.pluginInfo('mayaUsdPlugin', q=True, loaded=True):
         print("LayoutLink: Warning - Could not load Maya USD plugin")
 
 print("\n" + "="*60)
-print("MAYA LAYOUTLINK v0.1.0")
+print("MAYA LAYOUTLINK v0.1.0 - Loaded")
 print("="*60)
-print("\nTo open the UI:")
-print("import maya_LayoutLink as mll")
-print("mll.show_ui()")
-print()
+print("\nUseful Commands:")
+print("  maya_LayoutLink.show_ui()              - Reopen the UI")
+print("  maya_LayoutLink.close_ui()             - Close the UI")
+print("  maya_LayoutLink.create_shelf_button()  - Add shelf button")
+print("  maya_LayoutLink.list_exported_files()  - See exported files")
+print("="*60 + "\n")
 
 if __name__ == "__main__":
     show_ui()
-
