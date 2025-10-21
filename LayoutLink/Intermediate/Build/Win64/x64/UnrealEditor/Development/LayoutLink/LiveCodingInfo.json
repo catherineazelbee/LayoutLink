@@ -1,0 +1,11 @@
+{
+	"RemapUnityFiles": 
+	{
+		"Module.LayoutLink.cpp.obj": [
+			"PerModuleInline.gen.cpp.obj",
+			"LayoutLink.cpp.obj",
+			"LayoutLinkCommands.cpp.obj",
+			"LayoutLinkStyle.cpp.obj"
+		]
+	}
+}

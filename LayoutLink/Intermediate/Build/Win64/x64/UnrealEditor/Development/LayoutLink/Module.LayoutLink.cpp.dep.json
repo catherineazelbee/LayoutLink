@@ -1,0 +1,15 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "c:\\users\\cathe\\documents\\unreal projects\\layoutlinkproject\\plugins\\layoutlink\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\layoutlink\\module.layoutlink.cpp",
+        "ProvidedModule": "",
+        "PCH": "c:\\users\\cathe\\documents\\unreal projects\\layoutlinkproject\\intermediate\\build\\win64\\x64\\layoutlinkprojecteditor\\development\\unrealed\\sharedpch.unrealed.cpp20.h.pch",
+        "Includes": [
+            "c:\\users\\cathe\\documents\\unreal projects\\layoutlinkproject\\plugins\\layoutlink\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\layoutlink\\definitions.layoutlink.h",
+            "c:\\users\\cathe\\documents\\unreal projects\\layoutlinkproject\\plugins\\layoutlink\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\layoutlink\\permoduleinline.gen.cpp",
+            "c:\\program files\\epic games\\ue_5.6\\engine\\source\\runtime\\core\\public\\hal\\permoduleinline.inl"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

@@ -1,0 +1,15 @@
+/NOLOGO
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/DEF
+/NAME:"UnrealEditor-LayoutLink.dll"
+/IGNORE:4221
+/NODEFAULTLIB
+"C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Intermediate/Build/Win64/x64/LayoutLinkProjectEditor/Development/UnrealEd/SharedPCH.UnrealEd.Cpp20.h.obj"
+"C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Plugins/LayoutLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/LayoutLink/Module.LayoutLink.cpp.obj"
+"C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Plugins/LayoutLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/LayoutLink/LayoutLink.cpp.obj"
+"C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Plugins/LayoutLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/LayoutLink/LayoutLinkCommands.cpp.obj"
+"C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Plugins/LayoutLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/LayoutLink/LayoutLinkStyle.cpp.obj"
+"C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Plugins/LayoutLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/LayoutLink/Default.rc2.res"
+/OUT:"C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Plugins/LayoutLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/LayoutLink/UnrealEditor-LayoutLink.lib"
