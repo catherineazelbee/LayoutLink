@@ -24,6 +24,9 @@ private:
 
 	TSharedRef<class SDockTab> OnSpawnPluginTab(const class FSpawnTabArgs& SpawnTabArgs);
 
+	// TODO: NEW FUNCTIONALITY
+	FReply OnImportButtonClicked();
+
 private:
 	TSharedPtr<class FUICommandList> PluginCommands;
 };
