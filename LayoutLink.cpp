@@ -16,12 +16,12 @@ static const FName LayoutLinkTabName("LayoutLink");
 void FLayoutLinkModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
-	
+
 	FLayoutLinkStyle::Initialize();
 	FLayoutLinkStyle::ReloadTextures();
 
 	FLayoutLinkCommands::Register();
-	
+
 	PluginCommands = MakeShareable(new FUICommandList);
 
 	PluginCommands->MapAction(
@@ -30,10 +30,8 @@ void FLayoutLinkModule::StartupModule()
 		FCanExecuteAction());
 
 	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FLayoutLinkModule::RegisterMenus));
-	
-	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(LayoutLinkTabName, FOnSpawnTab::CreateRaw(this, &FLayoutLinkModule::OnSpawnPluginTab))
-		.SetDisplayName(LOCTEXT("FLayoutLinkTabTitle", "LayoutLink"))
-		.SetMenuType(ETabSpawnerMenuType::Hidden);
+
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(LayoutLinkTabName, FOnSpawnTab::CreateRaw(this, &FLayoutLinkModule::OnSpawnPluginTab)).SetDisplayName(LOCTEXT("FLayoutLinkTabTitle", "LayoutLink")).SetMenuType(ETabSpawnerMenuType::Hidden);
 }
 
 void FLayoutLinkModule::ShutdownModule()
@@ -52,18 +50,47 @@ void FLayoutLinkModule::ShutdownModule()
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(LayoutLinkTabName);
 }
 
-TSharedRef<SDockTab> FLayoutLinkModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
+TSharedRef<SDockTab> FLayoutLinkModule::OnSpawnPluginTab(const FSpawnTabArgs &SpawnTabArgs)
 {
-	FText WidgetText = FText::Format(
-		LOCTEXT("WindowWidgetText", "Add code to {0} in {1} to override this window's contents"),
-		FText::FromString(TEXT("FLayoutLinkModule::OnSpawnPluginTab")),
-		FText::FromString(TEXT("LayoutLink.cpp"))
-		);
-
 	return SNew(SDockTab)
 		.TabRole(ETabRole::NomadTab)
 		[
-			// Put your tab content here!
+			// Main vertical container (stacks widgets top to bottom)
+			SNew(SVerticalBox)
+
+			// === HEADER ===
+			+ SVerticalBox::Slot()
+			.AutoHeight() // only takes space needed
+			.Padding(10.0f) // 10 pixel spacing
+			[
+				(SNewTextBlock)
+				.Text(FText::FromString("Import Layout from Maya"))
+				.Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+				.Justification(ETextJustify::Center)
+			]
+
+			// === IMPORT BUTTOM ===
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.Padding(10.0f)
+			[
+				SNew(SButton)
+				.Text(FText::FromString("IMPORT USD FROM MAYA"))
+				.OnClicked_Raw(this, &FLayoutLinkModule::OnImportButtonClicked)
+			]
+
+			// === STATUS TEXT ===
+			+ SVerticalBox::Slot()
+			.FillHeight(1.0f) // Take remaining space
+			.Padding(10.0f)
+			[
+				SNew(SButton)
+				.Text(FText::FromString("Click Import to load USD files from Maya \n 
+					\n Shared folder: C:/SharedUSD/unreal_exports"))
+				.AutoWrapText(true)
+			]
+
+
 			SNew(SBox)
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
@@ -85,19 +112,19 @@ void FLayoutLinkModule::RegisterMenus()
 	FToolMenuOwnerScoped OwnerScoped(this);
 
 	{
-		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Window");
+		UToolMenu *Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Window");
 		{
-			FToolMenuSection& Section = Menu->FindOrAddSection("WindowLayout");
+			FToolMenuSection &Section = Menu->FindOrAddSection("WindowLayout");
 			Section.AddMenuEntryWithCommandList(FLayoutLinkCommands::Get().OpenPluginWindow, PluginCommands);
 		}
 	}
 
 	{
-		UToolMenu* ToolbarMenu = UToolMenus::Get()->ExtendMenu("LevelEditor.LevelEditorToolBar.PlayToolBar");
+		UToolMenu *ToolbarMenu = UToolMenus::Get()->ExtendMenu("LevelEditor.LevelEditorToolBar.PlayToolBar");
 		{
-			FToolMenuSection& Section = ToolbarMenu->FindOrAddSection("PluginTools");
+			FToolMenuSection &Section = ToolbarMenu->FindOrAddSection("PluginTools");
 			{
-				FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FLayoutLinkCommands::Get().OpenPluginWindow));
+				FToolMenuEntry &Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FLayoutLinkCommands::Get().OpenPluginWindow));
 				Entry.SetCommandList(PluginCommands);
 			}
 		}
@@ -105,5 +132,5 @@ void FLayoutLinkModule::RegisterMenus()
 }
 
 #undef LOCTEXT_NAMESPACE
-	
+
 IMPLEMENT_MODULE(FLayoutLinkModule, LayoutLink)
