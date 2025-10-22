@@ -1,18 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LayoutLink.h"
+#include "Editor.h" // GEditor (or "Editor/EditorEngine.h")
+#include "Framework/Application/SlateApplication.h" // FSlateApplication
 #include "LayoutLinkCommands.h"
 #include "LayoutLinkStyle.h"
 #include "LevelEditor.h"
+#include "Misc/Paths.h" // FPaths
 #include "ToolMenus.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 
+
 // USD includes - must be wrapped with special macros
 #include "USDIncludesStart.h"
-    #include "pxr/usd/usd/stage.h"
-    #include "pxr/usd/sdf/layer.h"
+#include "pxr/usd/sdf/layer.h"
+#include "pxr/usd/usd/stage.h"
 #include "USDIncludesEnd.h"
 
 // Unreal USD includes
@@ -168,8 +172,8 @@ FReply FLayoutLinkModule::OnImportButtonClicked() {
   const FString DefaultPath =
       TEXT("C:/SharedUSD/unreal_exports"); // start directory
   const FString DefaultFile = TEXT("");    // no default file
-  const FString FileTypes = TEXT(
-      "USD Files (*.usd;*.usda,*.usdc)|*.usd,*usda,*usdc"); // start directory
+  cconst FString FileTypes = TEXT(
+      "USD Files (*.usd;*.usda;*.usdc)|*.usd;*.usda;*.usdc"); // start directory
   const uint32 Flags = 0; // dialog flags (0=default)
 
   // STEP 4: Show the file dialog (opens Windows file browser)

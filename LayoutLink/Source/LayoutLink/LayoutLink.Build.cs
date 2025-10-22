@@ -35,10 +35,6 @@ public class LayoutLink : ModuleRules
 				// added dependencies
 				"Json", // reads metadata
 				"JsonUtilities", // parses JSON
-				"USDImporter", // USD import functionality
-				"USDStage", // USD Stage Actor
-				"UnrealUSDWrapper", // USD C++ API Wrapper from Pixar
-				"DesktopPlatform" // for file dialogs
 			}
 			);
 
@@ -51,11 +47,11 @@ public class LayoutLink : ModuleRules
 				"EditorFramework",
 				"UnrealEd",
 				"ToolMenus",
-				"CoreUObject",
-				"Engine",
-				"Slate",
-				"SlateCore",
-				// ... add private dependencies here
+				"LevelEditor",
+				"DesktopPlatform", // for file dialogs
+				"USDImporter", // USD import functionality
+				"USDStage", // USD Stage Actor
+				"UnrealUSDWrapper", // USD C++ API Wrapper from Pixar
 			}
 			);
 
