@@ -43,7 +43,12 @@ public class LayoutLink : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
-				// ... add private dependencies that you statically link with here ...	
+				// added dependencies
+				"Json", // reads metadata
+				"JsonUtilities", // parses JSON
+				"USDImporter", // USD import functionality
+				"USDStage", // USD Stage Actor
+				"UnrealUSDWrapper" // USD C++ API Wrapper
 			}
 			);
 		
