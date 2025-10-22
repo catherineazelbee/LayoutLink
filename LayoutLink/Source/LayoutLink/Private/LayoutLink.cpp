@@ -10,10 +10,10 @@
 #include "Widgets/Text/STextBlock.h"
 
 // USD includes - must be wrapped with special macros
-#include "USDIncludesEnd.h"
 #include "USDIncludesStart.h"
-#include "pxr/usd/sdf/layer.h"
-#include "pxr/usd/usd/stage.h"
+    #include "pxr/usd/usd/stage.h"
+    #include "pxr/usd/sdf/layer.h"
+#include "USDIncludesEnd.h"
 
 // Unreal USD includes
 #include "USDStageActor.h"
@@ -204,7 +204,7 @@ FReply FLayoutLinkModule::OnImportButtonClicked() {
 }
 
 void FLayoutLinkModule::ImportUSDFile(const FString &FilePath) {
-  UE_LOG(LogTemp, Warning, TEXT("=== Starting USD Import"));
+  UE_LOG(LogTemp, Warning, TEXT("=== Starting USD Import ==="));
   UE_LOG(LogTemp, Warning, TEXT("File: %s"), *FilePath);
 
   // STEP 1: Verify the file exists

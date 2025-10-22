@@ -26,6 +26,12 @@ public class LayoutLink : ModuleRules
 			new string[]
 			{
 				"Core",
+				"CoreUObject",
+				"Engine",
+				"InputCore",
+				"UnrealEd",
+				"Slate",
+				"SlateCore",
 				// added dependencies
 				"Json", // reads metadata
 				"JsonUtilities", // parses JSON
@@ -44,12 +50,7 @@ public class LayoutLink : ModuleRules
 				"InputCore",
 				"EditorFramework",
 				"UnrealEd",
-				"ToolMenus",
-				"CoreUObject",
-				"Engine",
-				"Slate",
-				"SlateCore",
-
+				"ToolMenus"
 			}
 			);
 
