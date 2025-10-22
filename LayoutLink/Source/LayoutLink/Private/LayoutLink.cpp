@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "Framework/Application/SlateApplication.h"  // FSlateApplication
+#include "Misc/Paths.h"                              // FPaths
+#include "Editor.h"                                  // GEditor (or "Editor/EditorEngine.h")
+
 #include "LayoutLink.h"
-#include "Editor.h" // GEditor (or "Editor/EditorEngine.h")
-#include "Framework/Application/SlateApplication.h" // FSlateApplication
+
 #include "LayoutLinkCommands.h"
 #include "LayoutLinkStyle.h"
 #include "LevelEditor.h"
-#include "Misc/Paths.h" // FPaths
 #include "ToolMenus.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SBox.h"

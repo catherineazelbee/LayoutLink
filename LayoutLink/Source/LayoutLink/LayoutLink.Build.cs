@@ -25,16 +25,7 @@ public class LayoutLink : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core",
-				"CoreUObject",
-				"Engine",
-				"InputCore",
-				"UnrealEd",
-				"Slate",
-				"SlateCore",
-				// added dependencies
-				"Json", // reads metadata
-				"JsonUtilities", // parses JSON
+				"Core","CoreUObject","Engine","Slate","SlateCore","Json","JsonUtilities",
 			}
 			);
 
@@ -42,16 +33,10 @@ public class LayoutLink : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Projects",
-				"InputCore",
-				"EditorFramework",
-				"UnrealEd",
-				"ToolMenus",
-				"LevelEditor",
-				"DesktopPlatform", // for file dialogs
-				"USDImporter", // USD import functionality
-				"USDStage", // USD Stage Actor
-				"UnrealUSDWrapper", // USD C++ API Wrapper from Pixar
+			"Projects","EditorFramework","UnrealEd","ToolMenus","LevelEditor",
+            "DesktopPlatform",
+            // USD (Editor side)
+            "USDImporter","USDStage","UnrealUSDWrapper",
 			}
 			);
 
