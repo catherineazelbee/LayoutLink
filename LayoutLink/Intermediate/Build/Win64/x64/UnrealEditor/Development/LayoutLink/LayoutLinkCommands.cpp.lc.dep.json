@@ -1,0 +1,15 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "c:\\users\\azelby.c\\documents\\unreal projects\\layoutlink_301\\plugins\\layoutlink\\source\\layoutlink\\private\\layoutlinkcommands.cpp",
+        "ProvidedModule": "",
+        "PCH": "c:\\users\\azelby.c\\documents\\unreal projects\\layoutlink_301\\intermediate\\build\\win64\\x64\\layoutlink_301editor\\development\\unrealed\\sharedpch.unrealed.project.valapi.valexpapi.cpp20.h.pch",
+        "Includes": [
+            "c:\\users\\azelby.c\\documents\\unreal projects\\layoutlink_301\\plugins\\layoutlink\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\layoutlink\\definitions.layoutlink.h",
+            "c:\\users\\azelby.c\\documents\\unreal projects\\layoutlink_301\\plugins\\layoutlink\\source\\layoutlink\\public\\layoutlinkcommands.h",
+            "c:\\users\\azelby.c\\documents\\unreal projects\\layoutlink_301\\plugins\\layoutlink\\source\\layoutlink\\public\\layoutlinkstyle.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

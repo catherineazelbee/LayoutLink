@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// LayoutLink.Build.cs
 
 using UnrealBuildTool;
 
@@ -6,59 +6,33 @@ public class LayoutLink : ModuleRules
 {
 	public LayoutLink(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-
-		PublicIncludePaths.AddRange(
-			new string[] {
-				// ... add public include paths required here ...
-			}
-			);
-
-
-		PrivateIncludePaths.AddRange(
-			new string[] {
-				// ... add other private include paths required here ...
-			}
-			);
-
+		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PublicDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"Core",
-				// ... add other public dependencies that you statically link with here ...
-			}
-			);
-			
-		
+			new string[] {
+				"Core"
+			});
+
 		PrivateDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"Projects",
-				"InputCore",
-				"EditorFramework",
-				"UnrealEd",
-				"ToolMenus",
+			new string[] {
 				"CoreUObject",
 				"Engine",
 				"Slate",
 				"SlateCore",
-				// ... add private dependencies that you statically link with here ...	
-				// added dependencies
-				"Json", // reads metadata
-				"JsonUtilities", // parses JSON
-				"USDImporter", // USD import functionality
-				"USDStage", // USD Stage Actor
-				"UnrealUSDWrapper" // USD C++ API Wrapper
-			}
-			);
+				"USDStage",
+				"UnrealUSDWrapper",
+				"DesktopPlatform"
+			});
 
-
-		DynamicallyLoadedModuleNames.AddRange(
-			new string[]
-			{
-				// ... add any modules that your module loads dynamically here ...
-			}
-			);
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+					"UnrealEd",
+					"LevelEditor",
+					"ToolMenus"
+				});
+		}
 	}
 }
+
