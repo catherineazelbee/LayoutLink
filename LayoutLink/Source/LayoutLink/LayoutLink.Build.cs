@@ -26,7 +26,13 @@ public class LayoutLink : ModuleRules
 			new string[]
 			{
 				"Core",
-				// ... add other public dependencies that you statically link with here ...
+				// added dependencies
+				"Json", // reads metadata
+				"JsonUtilities", // parses JSON
+				"USDImporter", // USD import functionality
+				"USDStage", // USD Stage Actor
+				"UnrealUSDWrapper", // USD C++ API Wrapper from Pixar
+				"DesktopPlatform" // for file dialogs
 			}
 			);
 
@@ -43,13 +49,7 @@ public class LayoutLink : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
-				// added dependencies
-				"Json", // reads metadata
-				"JsonUtilities", // parses JSON
-				"USDImporter", // USD import functionality
-				"USDStage", // USD Stage Actor
-				"UnrealUSDWrapper", // USD C++ API Wrapper from Pixar
-				"DesktopPlatform" // for file dialogs
+
 			}
 			);
 
