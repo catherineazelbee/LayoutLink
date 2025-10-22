@@ -25,18 +25,31 @@ public class LayoutLink : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"Core","CoreUObject","Engine","Slate","SlateCore","Json","JsonUtilities",
+				"Core",
+				// ... add other public dependencies that you statically link with here ...
 			}
 			);
-
-
+			
+		
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-			"Projects","EditorFramework","UnrealEd","ToolMenus","LevelEditor",
-            "DesktopPlatform",
-            // USD (Editor side)
-            "USDImporter","USDStage","UnrealUSDWrapper",
+				"Projects",
+				"InputCore",
+				"EditorFramework",
+				"UnrealEd",
+				"ToolMenus",
+				"CoreUObject",
+				"Engine",
+				"Slate",
+				"SlateCore",
+				// ... add private dependencies that you statically link with here ...	
+				// added dependencies
+				"Json", // reads metadata
+				"JsonUtilities", // parses JSON
+				"USDImporter", // USD import functionality
+				"USDStage", // USD Stage Actor
+				"UnrealUSDWrapper" // USD C++ API Wrapper
 			}
 			);
 
