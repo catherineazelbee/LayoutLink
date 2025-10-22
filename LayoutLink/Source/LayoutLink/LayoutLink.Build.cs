@@ -50,7 +50,12 @@ public class LayoutLink : ModuleRules
 				"InputCore",
 				"EditorFramework",
 				"UnrealEd",
-				"ToolMenus"
+				"ToolMenus",
+				"CoreUObject",
+				"Engine",
+				"Slate",
+				"SlateCore",
+				// ... add private dependencies here
 			}
 			);
 
