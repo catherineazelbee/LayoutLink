@@ -50,55 +50,45 @@ void FLayoutLinkModule::ShutdownModule()
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(LayoutLinkTabName);
 }
 
-TSharedRef<SDockTab> FLayoutLinkModule::OnSpawnPluginTab(const FSpawnTabArgs &SpawnTabArgs)
+TSharedRef<SDockTab> FLayoutLinkModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
-	return SNew(SDockTab)
-		.TabRole(ETabRole::NomadTab)
-		[
-			// Main vertical container (stacks widgets top to bottom)
-			SNew(SVerticalBox)
-
-			// === HEADER ===
-			+ SVerticalBox::Slot()
-			.AutoHeight() // only takes space needed
-			.Padding(10.0f) // 10 pixel spacing
-			[
-				(SNewTextBlock)
-				.Text(FText::FromString("Import Layout from Maya"))
-				.Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
-				.Justification(ETextJustify::Center)
-			]
-
-			// === IMPORT BUTTOM ===
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(10.0f)
-			[
-				SNew(SButton)
-				.Text(FText::FromString("IMPORT USD FROM MAYA"))
-				.OnClicked_Raw(this, &FLayoutLinkModule::OnImportButtonClicked)
-			]
-
-			// === STATUS TEXT ===
-			+ SVerticalBox::Slot()
-			.FillHeight(1.0f) // Take remaining space
-			.Padding(10.0f)
-			[
-				SNew(SButton)
-				.Text(FText::FromString("Click Import to load USD files from Maya \n 
-					\n Shared folder: C:/SharedUSD/unreal_exports"))
-				.AutoWrapText(true)
-			]
-
-
-			SNew(SBox)
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			[
-				SNew(STextBlock)
-				.Text(WidgetText)
-			]
-		];
+    return SNew(SDockTab)
+        .TabRole(ETabRole::NomadTab)
+        [
+            // Main vertical container (stacks widgets top to bottom)
+            SNew(SVerticalBox)
+            
+            // === HEADER ===
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(10.0f)
+            [
+                SNew(STextBlock)
+                .Text(FText::FromString("Import Layout from Maya"))
+                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+                .Justification(ETextJustify::Center)
+            ]
+            
+            // === BIG IMPORT BUTTON ===
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(10.0f)
+            [
+                SNew(SButton)
+                .Text(FText::FromString("IMPORT USD FROM MAYA"))
+                .OnClicked_Raw(this, &FLayoutLinkModule::OnImportButtonClicked)
+            ]
+            
+            // === STATUS TEXT ===
+            + SVerticalBox::Slot()
+            .FillHeight(1.0f)
+            .Padding(10.0f)
+            [
+                SNew(STextBlock)
+                .Text(FText::FromString("Click Import to load USD files from Maya\n\nShared folder: C:/SharedUSD/unreal_exports"))
+                .AutoWrapText(true)
+            ]
+        ];
 }
 
 void FLayoutLinkModule::PluginButtonClicked()
@@ -129,6 +119,12 @@ void FLayoutLinkModule::RegisterMenus()
 			}
 		}
 	}
+}
+FReply FLayoutLinkModule::OnImportButtonClicked()
+{
+    UE_LOG(LogTemp, Warning, TEXT("=== LayoutLink Import Clicked ==="));
+    UE_LOG(LogTemp, Warning, TEXT("Ready to import USD from Maya!"));
+    return FReply::Handled();
 }
 
 #undef LOCTEXT_NAMESPACE

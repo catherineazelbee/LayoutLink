@@ -20,7 +20,7 @@
 /ALTERNATENAME:__imp___std_init_once_complete=__imp_InitOnceComplete
 /DELAYLOAD:"d3d12.dll"
 /DELAYLOAD:"DBGHELP.DLL"
-/LIBPATH:"C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/lib/x64"
+/LIBPATH:"C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.38.33130/lib/x64"
 /LIBPATH:"C:/Program Files (x86)/Windows Kits/10/lib/10.0.22621.0/ucrt/x64"
 /LIBPATH:"C:/Program Files (x86)/Windows Kits/10/lib/10.0.22621.0/um/x64"
 /NODEFAULTLIB:"LIBCMT"
@@ -36,7 +36,7 @@
 /FUNCTIONPADMIN:6
 /NOIMPLIB
 /NOEXP
-"C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Intermediate/Build/Win64/x64/LayoutLinkProjectEditor/Development/UnrealEd/SharedPCH.UnrealEd.Cpp20.h.obj"
+"C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Intermediate/Build/Win64/x64/LayoutLinkProjectEditor/Development/UnrealEd/SharedPCH.UnrealEd.Project.ValApi.ValExpApi.Cpp20.h.obj"
 "C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Plugins/LayoutLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/LayoutLink/Module.LayoutLink.cpp.obj"
 "C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Plugins/LayoutLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/LayoutLink/LayoutLink.cpp.obj"
 "C:/Users/cathe/Documents/Unreal Projects/LayoutLinkProject/Plugins/LayoutLink/Intermediate/Build/Win64/x64/UnrealEditor/Development/LayoutLink/LayoutLinkCommands.cpp.obj"
