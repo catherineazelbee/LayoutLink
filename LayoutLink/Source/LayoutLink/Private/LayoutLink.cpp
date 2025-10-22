@@ -107,7 +107,7 @@ TSharedRef<SDockTab> FLayoutLinkModule::OnSpawnPluginTab(const FSpawnTabArgs &Sp
 						   + SScrollBox::Slot()
 								 [
 									 // Save reference to this widget so we can update it
-									 SAssignNew(StatusTextWidget, STextBlock) // SAssig stores it in StatusTextWidget
+									 SAssignNew(StatusTextWidget, STextBlock) // SAssign stores it in StatusTextWidget
 										 .Text(FText::FromString("Click Import to load USD files from Maya \n\nShared Folder: C:/SharedUSD/unreal_exports"))]]];
 }
 
@@ -173,10 +173,10 @@ FReply FLayoutLinkModule::OnImportButtonClicked()
 		FileTypes,
 		Flags,
 		OutFiles // selected files go here
-		)
+	);
 
-						 // STEP 5: Check if user selected a file (or cancelled)
-						 if (bFileSelected && OutFiles.Num() > 0)
+	// STEP 5: Check if user selected a file (or cancelled)
+	if (bFileSelected && OutFiles.Num() > 0)
 	{
 		// user selected a file
 		FString SelectedFile = OutFiles[0];
@@ -186,7 +186,8 @@ FReply FLayoutLinkModule::OnImportButtonClicked()
 		if (StatusTextWidget.IsValid())
 		{
 			FString StatusMessage = FString::Printf(
-				TEXT("Importing: %s\n\nPlease wait...") * FPaths::GetCleanFilename(SelectedFile));
+				TEXT("Importing: %s\n\nPlease wait..."),
+				*FPaths::GetCleanFilename(SelectedFile));
 			StatusTextWidget->SetText(FText::FromString(StatusMessage));
 		}
 
@@ -196,15 +197,15 @@ FReply FLayoutLinkModule::OnImportButtonClicked()
 	else
 	{
 		// user cancelled message
-		UE_LOG(LogTemp, Warning, TEXT("User cancelled file selection"), *SelectedFile);
+		UE_LOG(LogTemp, Warning, TEXT("User cancelled file selection"));
 	}
 
 	return FReply::Handled();
 }
 
-void FLayoutLinkModule::ImportUSDFile(const FString FilePath)
+void FLayoutLinkModule::ImportUSDFile(const FString &FilePath)
 {
-	UE_LOG(LogTemp, Warning, TEXT("=== Starting USD Import"), *SelectedFile);
+	UE_LOG(LogTemp, Warning, TEXT("=== Starting USD Import"));
 	UE_LOG(LogTemp, Warning, TEXT("File: %s"), *FilePath);
 
 	// STEP 1: Verify the file exists
@@ -273,74 +274,75 @@ void FLayoutLinkModule::ImportUSDFile(const FString FilePath)
 
 		UE_LOG(LogTemp, Warning, TEXT("=== USD Import Complete ==="));
 	}
-
-	FString FLayoutLinkModule::ReadMetadataFromUSD(const FString &FilePath)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Reading metadata from: %s"), *FilePath);
-
-		// STEP 1: Convert Unreal FString to std::string for USD API
-		// USD library uses std::string, Unreal uses FString
-		std::string FilePathStd = TCHAR_TO_UTF8(*FilePath);
-
-		// STEP 2: Open the USD layer (not the whole scene, JUST metadata)
-		pxr::SdfLayerRefPtr Layer = pxr::SdfLayer::FindOrOpen(FilePathStd);
-
-		if (!Layer)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("COuld not open USD layer for metadata"));
-			return TEXT("No metadata found");
-		}
-
-		// STEP 3: Get the customLayerData (this is where Maya stored metadata)
-		// customLayerData is a VtDictionary (USD's key-value storage)
-		pxr::VtDictionary CustomData = Layer->GetCustomLayerData();
-
-		if (CustomData.empty())
-		{
-			UE_LOG(LogTemp, Warning, TEXT("No custom layer data found"));
-			return TEXT("No LayoutLink metadata");
-		}
-
-		// STEP 4: Extract our specific metadata keys
-		FString MetadataString = TEXT("=== Maya Export Info\n");
-
-		// Helper lambda for extracting string values from VtDictionary
-		auto GetStringValue = [&CustomData](custom std : String &Key) -> FString
-		{
-			// check if key exists
-			if (CustomData.count(Key) > 0)
-			{
-				// get the value
-				pxr::VtValue Value = CustomData[Key];
-
-				// convert to string
-				if (Value.IsHolding<std::string>())
-				{
-					std::string StrValue = Value.Get<std::string>();
-					return FString(UTF8_TO_CHAR(StrValue.c_str()));
-				}
-			}
-			return TEXT("N/A");
-		};
-
-		// STEP 5: Extract each metadata field from Maya
-		FString Timestamp = GetStringValue("layoutlink_timestamp");
-		FString Artist = GetStringValue("layoutlink_artist");
-		FString App = GetStringValue("layoutlink_app");
-		FString Operation = GetStringValue("layoutlink_operation");
-		FString Version = GetStringValue("layoutlink_version");
-
-		// STEP 6: Build readable metadata strings
-		MetadataString += FString::Printf(TEXT("Artist: %s\n"), *Artist);
-		MetadataString += FString::Printf(TEXT("Exported: %s\n"), *Timestamp);
-		MetadataString += FString::Printf(TEXT("From: %s\n"), *App);
-		MetadataString += FString::Printf(TEXT("Version: %s"), *Version);
-
-		UE_LOG(LogTemp, Warning, TEXT("Metadata extracted: %s"), *MetadataString);
-
-		return MetadataString;
-	}
 }
+
+FString FLayoutLinkModule::ReadMetadataFromUSD(const FString &FilePath)
+{
+	UE_LOG(LogTemp, Warning, TEXT("Reading metadata from: %s"), *FilePath);
+
+	// STEP 1: Convert Unreal FString to std::string for USD API
+	// USD library uses std::string, Unreal uses FString
+	std::string FilePathStd = TCHAR_TO_UTF8(*FilePath);
+
+	// STEP 2: Open the USD layer (not the whole scene, JUST metadata)
+	pxr::SdfLayerRefPtr Layer = pxr::SdfLayer::FindOrOpen(FilePathStd);
+
+	if (!Layer)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("COuld not open USD layer for metadata"));
+		return TEXT("No metadata found");
+	}
+
+	// STEP 3: Get the customLayerData (this is where Maya stored metadata)
+	// customLayerData is a VtDictionary (USD's key-value storage)
+	pxr::VtDictionary CustomData = Layer->GetCustomLayerData();
+
+	if (CustomData.empty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No custom layer data found"));
+		return TEXT("No LayoutLink metadata");
+	}
+
+	// STEP 4: Extract our specific metadata keys
+	FString MetadataString = TEXT("=== Maya Export Info\n");
+
+	// Helper lambda for extracting string values from VtDictionary
+	auto GetStringValue = [&CustomData](const std : String &Key) -> FString
+	{
+		// check if key exists
+		if (CustomData.count(Key) > 0)
+		{
+			// get the value
+			pxr::VtValue Value = CustomData[Key];
+
+			// convert to string
+			if (Value.IsHolding<std::string>())
+			{
+				std::string StrValue = Value.Get<std::string>();
+				return FString(UTF8_TO_TCHAR(StrValue.c_str()));
+			}
+		}
+		return TEXT("N/A");
+	};
+
+	// STEP 5: Extract each metadata field from Maya
+	FString Timestamp = GetStringValue("layoutlink_timestamp");
+	FString Artist = GetStringValue("layoutlink_artist");
+	FString App = GetStringValue("layoutlink_app");
+	FString Operation = GetStringValue("layoutlink_operation");
+	FString Version = GetStringValue("layoutlink_version");
+
+	// STEP 6: Build readable metadata strings
+	MetadataString += FString::Printf(TEXT("Artist: %s\n"), *Artist);
+	MetadataString += FString::Printf(TEXT("Exported: %s\n"), *Timestamp);
+	MetadataString += FString::Printf(TEXT("From: %s\n"), *App);
+	MetadataString += FString::Printf(TEXT("Version: %s"), *Version);
+
+	UE_LOG(LogTemp, Warning, TEXT("Metadata extracted: %s"), *MetadataString);
+
+	return MetadataString;
+}
+
 #undef LOCTEXT_NAMESPACE
 
 IMPLEMENT_MODULE(FLayoutLinkModule, LayoutLink)

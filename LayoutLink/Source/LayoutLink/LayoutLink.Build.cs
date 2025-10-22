@@ -7,21 +7,21 @@ public class LayoutLink : ModuleRules
 	public LayoutLink(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
-		
+
 		PublicIncludePaths.AddRange(
 			new string[] {
 				// ... add public include paths required here ...
 			}
 			);
-				
-		
+
+
 		PrivateIncludePaths.AddRange(
 			new string[] {
 				// ... add other private include paths required here ...
 			}
 			);
-			
-		
+
+
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -29,8 +29,8 @@ public class LayoutLink : ModuleRules
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);
-			
-		
+
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
@@ -48,11 +48,12 @@ public class LayoutLink : ModuleRules
 				"JsonUtilities", // parses JSON
 				"USDImporter", // USD import functionality
 				"USDStage", // USD Stage Actor
-				"UnrealUSDWrapper" // USD C++ API Wrapper
+				"UnrealUSDWrapper", // USD C++ API Wrapper from Pixar
+				"DesktopPlatform" // for file dialogs
 			}
 			);
-		
-		
+
+
 		DynamicallyLoadedModuleNames.AddRange(
 			new string[]
 			{
