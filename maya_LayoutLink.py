@@ -45,13 +45,11 @@ except ImportError:
 
 class Config:
     """
-    Stores persistent settings (export folder) using Maya optionVars.
-    User must set an export location.
+    LayoutLink configuration - updated to store user-defined export folder
     """
 
-    # This is where USD files are shared between Maya and Unreal
-    # Change this to your actual shared location (Windows)
-    OPTVAR_EXPORT_DIR = "LayoutLink_ExportDir"
+    # User for storing path in Maya's persistent settings
+    EXPORT_LOCATION_VAR = "layoutlink_export_path"
 
     # Metadata keys for tracking plugin-specific info
     META_TIMESTAMP = "layouylink_timestamp"
@@ -63,21 +61,24 @@ class Config:
     VERSION = "0.1.0"
 
     @classmethod
-    def get_maya_export_path(cls):
-        """Get the full path to Maya export directory"""
-        path = os.path.join(cls.SHARED_USD_PATH, cls.MAYA_EXPORT_DIR)
-        if not os.path.exists(path):
-            os.makedirs(path)
-        return path
+    def get_export_path(cls):
+        """Returns user-set export path or None if none set"""
+        if cmds.optionVar(exists=cls.EXPORT_LOCATION_VAR):
+            return cmds.optionVar(q=cls.EXPORT_LOCATION_VAR)
+        return None
     
     @classmethod
-    def get_unreal_export_path(cls):
-        """Get the full path to Unreal export directory"""
-        path = os.path.join(cls.SHARED_USD_PATH, cls.UNREAL_EXPORT_DIR)
-        if not os.path.exists(path):
-            os.makedirs(path)
-        return path
+    def set_export_path(cls, path):
+        """Saves a new export path"""
+        cmds.optionVar(sv=(cls.EXPORT_LOCATION_VAR, path))
     
+    @classmethod
+    def ensure_export_path(cls):
+        """Make sure folder exists on disc"""  
+        path = cls.get_export_path()
+        if path and not os.path.exists(path):
+            os.makedirs(paths)
+
 # ============================================================================
 # METADATA MANAGER
 # ============================================================================
@@ -304,6 +305,19 @@ class MetadataManager:
             # Select cameras and export
             cmds.select(user_cameras, replace=True)
             return ExportManager.export_selected(output_path, export_animation=False)
+        
+    def prompt_for_export_folder():
+        """Force user to choose file export location at startup"""
+        file_dialog = QtWidgets.QFileDialog()
+        file_dialog.setFileMode(QtWidgets.QFileDialog.Directory)
+        file_dialog.setOption(QtWidgets.QFileDialog.ShowDirsOnly, True)
+        file_dialog.setWindowTitle("Choose Export Location for LayoutLink")
+
+        if file_dialog.exec_():
+            selected = file_dialog.selectedFiles()[0]
+            Config.set_export_path(selected)
+            return True
+        return False
 
 # ============================================================================
 # SIMPLE UI FOR LAYOUT ARTISTS
@@ -442,7 +456,7 @@ class LayoutLinkUI(QtWidgets.QDialog):
     
     def update_location_label(self):
         """Update the label showing where files will be exported"""
-        export_path = Config.get_maya_export_path()
+        export_path = Config.get_export_path()
         filename = self.filename_input.text()
         full_path = os.path.join(export_path, filename)
         self.location_label.setText(f"Files export to:\n{full_path}")
@@ -484,7 +498,7 @@ class LayoutLinkUI(QtWidgets.QDialog):
             filename += '.usda'
         
         # Build full path
-        export_path = Config.get_maya_export_path()
+        export_path = Config.get_export_path()
         full_path = os.path.join(export_path, filename)
         
         # Get animation settings
@@ -572,26 +586,30 @@ class LayoutLinkUI(QtWidgets.QDialog):
 
 def show_ui():
     """
-    Show the LayoutLink UI.
-    
-    Example:
-        import maya_LayoutLink as mll
-        mll.show_ui()
+    Launch LayoutLink UI — requires user to select export folder.
     """
-    global layoutlink_window
-    
-    # Close existing window if it exists
-    try:
-        layoutlink_window.close()
-        layoutlink_window.deleteLater()
-    except:
-        pass
-    
-    # Create and show new window
-    layoutlink_window = LayoutLinkUI()
-    layoutlink_window.show()
-    
-    return layoutlink_window
+    if not Config.get_export_path():
+        if not prompt_for_export_folder():
+            print("LayoutLink canceled — export folder not selected")
+            return
+
+    workspace_name = "LayoutLinkWorkspace"
+    if cmds.workspaceControl(workspace_name, q=True, exists=True):
+        cmds.deleteUI(workspace_name, control=True)
+
+    wc = cmds.workspaceControl(
+        workspace_name,
+        label="LayoutLink",
+        dockToMainWindow=("right", 1),
+        initialWidth=450,
+        initialHeight=650,
+        retain=False,
+        floating=True
+    )
+
+    _build_ui()
+    return wc
+
 
 
 # ============================================================================
