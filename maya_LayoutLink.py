@@ -212,6 +212,14 @@ class LayoutLinkUI(QtWidgets.QDialog):
 
     def on_export_clicked(self):
         self.log("Export button clicked")
+        selection = cmds.ls(selection=True)
+        if not selection:
+            QtWidgets.QMessageBox.warning(
+                self, "Nothing selected",
+                "Please select one or more objects in Maya before exporting."
+            )
+            self.log("Export cancelled - no objects selected.")
+            return
         # Here would be call to actual export logic
 
     def on_change_export_location(self):
