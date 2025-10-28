@@ -4,6 +4,9 @@
 
 #include "LayoutLink.h"
 
+// For finding plugin directory
+#include "Interfaces/IPluginManager.h"
+
 // Unreal framework includes
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/Paths.h"
@@ -33,19 +36,8 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SScrollBox.h"
 
-// USD includes - MUST be wrapped with Start/End macros to disable Unreal warnings
-#include "USDIncludesStart.h"
-    #include "pxr/usd/usd/stage.h"
-    #include "pxr/usd/sdf/layer.h"
-    #include "pxr/usd/usdGeom/xform.h"
-    #include "pxr/usd/usdGeom/tokens.h"
-    #include "pxr/usd/sdf/path.h"
-#include "USDIncludesEnd.h"
-
 // Unreal selection and export
 #include "Selection.h"
-#include "USDConversionUtils.h"
-#include "USDLayerUtils.h"
 
 // Unreal's USD integration
 #include "USDStageActor.h"
@@ -53,6 +45,10 @@
 // File dialog system
 #include "DesktopPlatformModule.h"
 #include "IDesktopPlatform.h"
+
+// Python integration
+#include "IPythonScriptPlugin.h"
+#include "PythonScriptTypes.h"
 
 // Tab name for the LayoutLink window
 static const FName LayoutLinkTabName("LayoutLink");
@@ -297,88 +293,61 @@ FReply FLayoutLinkModule::OnImportButtonClicked()
 
 void FLayoutLinkModule::ImportUSDFile(const FString& FilePath)
 {
-    // Imports a USD file from Maya into the Unreal level
-    // Creates a USD Stage Actor and loads the file into it
+    // Uses Python script to import USD from Maya
     
-    UE_LOG(LogTemp, Warning, TEXT("=== Starting USD Import ==="));
+    UE_LOG(LogTemp, Warning, TEXT("=== Calling Python Import Script ==="));
     UE_LOG(LogTemp, Warning, TEXT("File: %s"), *FilePath);
     
-    // STEP 1: Verify file exists on disk
-    if (!FPaths::FileExists(FilePath))
+    // Get plugin directory
+    TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
+    if (!Plugin.IsValid())
     {
-        UE_LOG(LogTemp, Error, TEXT("File does not exist: %s"), *FilePath);
-        
-        if (StatusTextWidget.IsValid())
-        {
-            StatusTextWidget->SetText(FText::FromString(TEXT("ERROR: File not found!")));
-        }
+        UE_LOG(LogTemp, Error, TEXT("Could not find LayoutLink plugin"));
         return;
     }
     
-#if !WITH_EDITOR
-    UE_LOG(LogTemp, Error, TEXT("USD import only works in the Editor."));
-    return;
-#endif
+    FString PythonScriptPath = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Content/Python"));
     
-    // STEP 2: Get the currently open level
-    // Everything in Unreal exists in a "World" (like Maya's scene)
-    UWorld* World = GEditor->GetEditorWorldContext().World();
-    if (!World)
-    {
-        UE_LOG(LogTemp, Error, TEXT("No world found!"));
-        return;
-    }
-    
-    // STEP 3: Read metadata from the USD file before importing
-    // This shows who exported it from Maya and when
-    FString MetadataInfo = ReadMetadataFromUSD(FilePath);
-    UE_LOG(LogTemp, Warning, TEXT("Metadata: %s"), *MetadataInfo);
-    
-    // STEP 4: Create a USD Stage Actor in the level
-    // USD Stage Actor is Unreal's object that displays USD files (like Maya's proxy shape)
-    FActorSpawnParameters SpawnParams;
-    SpawnParams.Name = FName("MayaLayoutImport");  // Name it meaningfully
-    
-    AUsdStageActor* StageActor = World->SpawnActor<AUsdStageActor>(
-        AUsdStageActor::StaticClass(),
-        FVector::ZeroVector,    // Spawn at origin (0, 0, 0)
-        FRotator::ZeroRotator,  // No rotation
-        SpawnParams
+    // Build Python command
+    FString PythonScript = FString::Printf(
+        TEXT("import sys; "
+             "sys.path.append(r'%s'); "
+             "import layout_import; "
+             "result = layout_import.import_usd_from_maya(r'%s'); "
+             "print('Import result:', result)"),
+        *PythonScriptPath,
+        *FilePath
     );
     
-    // STEP 5: Check if spawn succeeded
-    if (!StageActor)
+    // Execute Python
+    FPythonCommandEx PythonCommand;
+    PythonCommand.Command = PythonScript;
+    PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
+    
+    bool bSuccess = IPythonScriptPlugin::Get()->ExecPythonCommand(*PythonCommand.Command);
+    
+    if (bSuccess)
     {
-        UE_LOG(LogTemp, Error, TEXT("Failed to spawn USD Stage Actor"));
+        UE_LOG(LogTemp, Warning, TEXT("Python import completed"));
         
         if (StatusTextWidget.IsValid())
         {
-            StatusTextWidget->SetText(FText::FromString(TEXT("ERROR: Failed to create USD Stage Actor")));
+            StatusTextWidget->SetText(FText::FromString(
+                TEXT("Import Successful!\n\nUSD Stage Actor created.\nCheck World Outliner for 'MayaLayoutImport'")
+            ));
         }
-        return;
     }
-    
-    UE_LOG(LogTemp, Warning, TEXT("Created USD Stage Actor: %s"), *StageActor->GetName());
-    
-    // STEP 6: Load the USD file into the Stage Actor
-    // This actually loads and displays the geometry
-    StageActor->SetRootLayer(*FilePath);
-    
-    // STEP 7: Set animation to frame 0
-    StageActor->SetTime(0.0f);
-    
-    // STEP 8: Update UI with success message
-    if (StatusTextWidget.IsValid())
+    else
     {
-        FString SuccessMessage = FString::Printf(
-            TEXT("Import Successful!\n\nFile: %s\n\n%s\n\nUSD Stage Actor created in World Outliner"),
-            *FPaths::GetCleanFilename(FilePath),
-            *MetadataInfo
-        );
-        StatusTextWidget->SetText(FText::FromString(SuccessMessage));
+        UE_LOG(LogTemp, Error, TEXT("Python import failed"));
+        
+        if (StatusTextWidget.IsValid())
+        {
+            StatusTextWidget->SetText(FText::FromString(
+                TEXT("ERROR: Python import failed!\n\nCheck Output Log for details.")
+            ));
+        }
     }
-    
-    UE_LOG(LogTemp, Warning, TEXT("=== USD Import Complete ==="));
 }
 
 // ============================================================================
@@ -474,37 +443,62 @@ FReply FLayoutLinkModule::OnExportButtonClicked()
 
 void FLayoutLinkModule::ExportUSDFile(const FString& FilePath)
 {
-    UE_LOG(LogTemp, Warning, TEXT("=== Export Placeholder ==="));
+    UE_LOG(LogTemp, Warning, TEXT("=== Calling Python Export Script ==="));
+    UE_LOG(LogTemp, Warning, TEXT("Target: %s"), *FilePath);
     
-    // Get selected actors count
-    USelection* Selection = GEditor->GetSelectedActors();
-    int ActorCount = Selection ? Selection->Num() : 0;
+    // STEP 1: Get the plugin's directory dynamically
+    TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
+    if (!Plugin.IsValid())
+    {
+        UE_LOG(LogTemp, Error, TEXT("Could not find LayoutLink plugin"));
+        return;
+    }
     
-    // Create a simple text file as placeholder
-    FString FileContent = FString::Printf(
-        TEXT("# LayoutLink Export Placeholder\n")
-        TEXT("# Selected Actors: %d\n")
-        TEXT("# Timestamp: %s\n")
-        TEXT("# Artist: %s\n")
-        TEXT("# From: Unreal Engine\n")
-        TEXT("\n")
-        TEXT("# TODO: Geometry export requires Unreal's USD exporter API\n")
-        TEXT("# which is currently in beta and has C++ integration issues.\n"),
-        ActorCount,
-        *FDateTime::UtcNow().ToString(),
-        *FPlatformProcess::UserName()
+    // Build path to Python script
+    FString PluginDir = Plugin->GetBaseDir();
+    FString PythonScriptPath = FPaths::Combine(PluginDir, TEXT("Content/Python"));
+    
+    UE_LOG(LogTemp, Warning, TEXT("Python script path: %s"), *PythonScriptPath);
+    
+    // STEP 2: Build Python command
+    FString PythonScript = FString::Printf(
+        TEXT("import sys; "
+             "sys.path.append(r'%s'); "
+             "import layout_export; "
+             "result = layout_export.export_selected_to_usd(r'%s'); "
+             "print('Export result:', result)"),
+        *PythonScriptPath,
+        *FilePath
     );
     
-    // Write to file
-    FFileHelper::SaveStringToFile(FileContent, *FilePath);
+    // STEP 3: Execute Python
+    FPythonCommandEx PythonCommand;
+    PythonCommand.Command = PythonScript;
+    PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
     
-    UE_LOG(LogTemp, Warning, TEXT("Created placeholder file"));
+    bool bSuccess = IPythonScriptPlugin::Get()->ExecPythonCommand(*PythonCommand.Command);
     
-    if (StatusTextWidget.IsValid())
+    if (bSuccess)
     {
-        StatusTextWidget->SetText(FText::FromString(
-            TEXT("Placeholder file created.\n\nNote: Full USD geometry export from Unreal\nrequires additional development due to\nUnreal 5.6 USD API limitations.")
-        ));
+        UE_LOG(LogTemp, Warning, TEXT("Python export completed"));
+        
+        if (StatusTextWidget.IsValid())
+        {
+            StatusTextWidget->SetText(FText::FromString(
+                TEXT("Export Successful!\n\nPython script created USD file.\nCheck Output Log for details.")
+            ));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Python export failed - check Output Log"));
+        
+        if (StatusTextWidget.IsValid())
+        {
+            StatusTextWidget->SetText(FText::FromString(
+                TEXT("ERROR: Python export failed!\n\nCheck Output Log for Python errors.")
+            ));
+        }
     }
 }
 
@@ -514,74 +508,39 @@ void FLayoutLinkModule::ExportUSDFile(const FString& FilePath)
 
 FString FLayoutLinkModule::ReadMetadataFromUSD(const FString& FilePath)
 {
-    // Reads the metadata that Maya added to the USD file
-    // Returns a formatted string with artist, timestamp, etc.
+    // Uses Python to read metadata (more stable than C++)
     
-    UE_LOG(LogTemp, Warning, TEXT("Reading metadata from: %s"), *FilePath);
+    UE_LOG(LogTemp, Warning, TEXT("Reading metadata via Python: %s"), *FilePath);
     
-    // STEP 1: Convert Unreal's FString to std::string for USD API
-    // USD uses standard C++ strings, Unreal uses FString
-    std::string FilePathStd = TCHAR_TO_UTF8(*FilePath);
-    
-    // STEP 2: Open just the USD layer (not the whole scene)
-    // This is fast - only reads metadata, not geometry
-    pxr::SdfLayerRefPtr Layer = pxr::SdfLayer::FindOrOpen(FilePathStd);
-    
-    if (!Layer)
+    // Get plugin directory
+    TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
+    if (!Plugin.IsValid())
     {
-        UE_LOG(LogTemp, Warning, TEXT("Could not open USD layer for metadata"));
-        return TEXT("No metadata found");
+        return TEXT("Could not find plugin");
     }
     
-    // STEP 3: Get the customLayerData dictionary
-    // This is where Maya stored the metadata using our MetadataManager
-    pxr::VtDictionary CustomData = Layer->GetCustomLayerData();
+    FString PythonScriptPath = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Content/Python"));
     
-    if (CustomData.empty())
-    {
-        UE_LOG(LogTemp, Warning, TEXT("No custom layer data found"));
-        return TEXT("No LayoutLink metadata");
-    }
+    // Build Python command to read and format metadata
+    FString PythonScript = FString::Printf(
+        TEXT("import sys; "
+             "sys.path.append(r'%s'); "
+             "from pxr import Sdf; "
+             "import metadata_utils; "
+             "layer = Sdf.Layer.FindOrOpen(r'%s'); "
+             "metadata = metadata_utils.read_layoutlink_metadata(layer) if layer else None; "
+             "result = metadata_utils.format_metadata_string(metadata); "
+             "print('METADATA_RESULT:', result)"),
+        *PythonScriptPath,
+        *FilePath
+    );
     
-    // STEP 4: Create helper function to extract string values
-    // Lambda function - like a mini-function defined inline
-    auto GetStringValue = [&CustomData](const std::string& Key) -> FString
-    {
-        // Check if the key exists in the dictionary
-        if (CustomData.count(Key) > 0)
-        {
-            // Get the value
-            pxr::VtValue Value = CustomData[Key];
-            
-            // Check if it's a string type
-            if (Value.IsHolding<std::string>())
-            {
-                // Extract and convert to FString
-                std::string StrValue = Value.Get<std::string>();
-                return FString(UTF8_TO_TCHAR(StrValue.c_str()));
-            }
-        }
-        return TEXT("N/A");  // Not found or wrong type
-    };
+    // Execute and capture output
+    IPythonScriptPlugin::Get()->ExecPythonCommand(*PythonScript);
     
-    // STEP 5: Extract each metadata field
-    // These keys match what Maya's MetadataManager writes
-    FString Timestamp = GetStringValue("layoutlink_timestamp");
-    FString Artist = GetStringValue("layoutlink_artist");
-    FString App = GetStringValue("layoutlink_app");
-    FString Operation = GetStringValue("layoutlink_operation");
-    FString Version = GetStringValue("layoutlink_version");
-    
-    // STEP 6: Format into readable string
-    FString MetadataString = TEXT("=== Maya Export Info ===\n");
-    MetadataString += FString::Printf(TEXT("Artist: %s\n"), *Artist);
-    MetadataString += FString::Printf(TEXT("Exported: %s\n"), *Timestamp);
-    MetadataString += FString::Printf(TEXT("From: %s\n"), *App);
-    MetadataString += FString::Printf(TEXT("Version: %s"), *Version);
-    
-    UE_LOG(LogTemp, Warning, TEXT("Metadata extracted successfully"));
-    
-    return MetadataString;
+    // For now, return a simple message
+    // TODO: Capture Python print output for full metadata display
+    return TEXT("Metadata read via Python (check Output Log)");
 }
 
 #undef LOCTEXT_NAMESPACE

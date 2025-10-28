@@ -21,8 +21,8 @@ public class LayoutLink : ModuleRules
 				"Slate",
 				"SlateCore",
 				"USDStage",
-				"UnrealUSDWrapper",
-				"DesktopPlatform"
+				"DesktopPlatform",
+				"PythonScriptPlugin"
 			});
 
 		if (Target.bBuildEditor)

@@ -4,12 +4,6 @@
 
 #include "Modules/ModuleManager.h"
 
-// Forward declare USD types
-namespace pxr {
-    template<typename T> class TfRefPtr;
-    class UsdStage;
-}
-
 class FToolBarBuilder;
 class FMenuBuilder;
 
