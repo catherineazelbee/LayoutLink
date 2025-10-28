@@ -4,6 +4,12 @@
 
 #include "Modules/ModuleManager.h"
 
+// Forward declare USD types
+namespace pxr {
+    template<typename T> class TfRefPtr;
+    class UsdStage;
+}
+
 class FToolBarBuilder;
 class FMenuBuilder;
 
@@ -18,13 +24,14 @@ public:
 private:
 #if WITH_EDITOR
 	void RegisterMenus();
-	TSharedRef<class SDockTab> OnSpawnPluginTab(const class FSpawnTabArgs& SpawnTabArgs);
+	TSharedRef<class SDockTab> OnSpawnPluginTab(const class FSpawnTabArgs &SpawnTabArgs);
 #endif
 
 	FReply OnImportButtonClicked();
 	FReply OnExportButtonClicked();
-	void ImportUSDFile(const FString& FilePath);
-	FString ReadMetadataFromUSD(const FString& FilePath);
+	void ExportUSDFile(const FString &FilePath);
+	void ImportUSDFile(const FString &FilePath);
+	FString ReadMetadataFromUSD(const FString &FilePath);
 
 private:
 	TSharedPtr<class FUICommandList> PluginCommands;

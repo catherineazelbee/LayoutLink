@@ -37,7 +37,15 @@
 #include "USDIncludesStart.h"
     #include "pxr/usd/usd/stage.h"
     #include "pxr/usd/sdf/layer.h"
+    #include "pxr/usd/usdGeom/xform.h"
+    #include "pxr/usd/usdGeom/tokens.h"
+    #include "pxr/usd/sdf/path.h"
 #include "USDIncludesEnd.h"
+
+// Unreal selection and export
+#include "Selection.h"
+#include "USDConversionUtils.h"
+#include "USDLayerUtils.h"
 
 // Unreal's USD integration
 #include "USDStageActor.h"
@@ -374,26 +382,130 @@ void FLayoutLinkModule::ImportUSDFile(const FString& FilePath)
 }
 
 // ============================================================================
-// EXPORT FUNCTIONALITY (Unreal → Maya) - PLACEHOLDER
+// EXPORT FUNCTIONALITY (Unreal → Maya)
 // ============================================================================
 
 FReply FLayoutLinkModule::OnExportButtonClicked()
 {
     // Called when user clicks "EXPORT TO MAYA" button
-    // TODO: Will export selected Unreal actors to USD for Maya
+    // Exports selected Unreal actors to USD for Maya import
     
-    UE_LOG(LogTemp, Warning, TEXT("=== Export Button Clicked ==="));
-    UE_LOG(LogTemp, Warning, TEXT("Export functionality coming next!"));
+    UE_LOG(LogTemp, Warning, TEXT("=== Starting Export to Maya ==="));
     
-    // Update status text
-    if (StatusTextWidget.IsValid())
+    // STEP 1: Check if anything is selected
+    USelection* SelectedActors = GEditor->GetSelectedActors();
+    if (!SelectedActors || SelectedActors->Num() == 0)
     {
-        StatusTextWidget->SetText(FText::FromString(
-            TEXT("Export functionality will be implemented next!\n\nThis button is a placeholder.")
-        ));
+        UE_LOG(LogTemp, Warning, TEXT("No actors selected"));
+        
+        if (StatusTextWidget.IsValid())
+        {
+            StatusTextWidget->SetText(FText::FromString(
+                TEXT("ERROR: No actors selected!\n\nPlease select actors in the level before exporting.")
+            ));
+        }
+        return FReply::Handled();
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("Exporting %d selected actor(s)"), SelectedActors->Num());
+    
+    // STEP 2: Get file dialog system
+    IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
+    if (!DesktopPlatform)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Could not get desktop platform module"));
+        return FReply::Handled();
+    }
+    
+    // STEP 3: Get parent window for dialog
+    void* ParentWindowHandle = nullptr;
+    IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
+    TSharedPtr<SWindow> MainWindow = MainFrame.GetParentWindow();
+    if (MainWindow.IsValid() && MainWindow->GetNativeWindow().IsValid())
+    {
+        ParentWindowHandle = MainWindow->GetNativeWindow()->GetOSWindowHandle();
+    }
+    
+    // STEP 4: Show SAVE dialog (not open dialog)
+    TArray<FString> OutFiles;
+    const FString DialogTitle = TEXT("Export USD to Maya");
+    const FString DefaultPath = TEXT("C:/SharedUSD/unreal_exports");  // Where Unreal exports TO
+    const FString DefaultFile = TEXT("unreal_layout.usda");  // Default filename
+    const FString FileTypes = TEXT("USD ASCII (*.usda)|*.usda");  // Only USDA for readability
+    const uint32 Flags = 0;
+    
+    bool bFileSelected = DesktopPlatform->SaveFileDialog(
+        ParentWindowHandle,
+        DialogTitle,
+        DefaultPath,
+        DefaultFile,
+        FileTypes,
+        Flags,
+        OutFiles
+    );
+    
+    // STEP 5: Process result
+    if (bFileSelected && OutFiles.Num() > 0)
+    {
+        FString SelectedFile = OutFiles[0];
+        UE_LOG(LogTemp, Warning, TEXT("Exporting to: %s"), *SelectedFile);
+        
+        // Update status
+        if (StatusTextWidget.IsValid())
+        {
+            FString StatusMessage = FString::Printf(
+                TEXT("Exporting %d actor(s) to:\n%s\n\nPlease wait..."),
+                SelectedActors->Num(),
+                *FPaths::GetCleanFilename(SelectedFile)
+            );
+            StatusTextWidget->SetText(FText::FromString(StatusMessage));
+        }
+        
+        // Actually export the file
+        ExportUSDFile(SelectedFile);
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("User cancelled export"));
     }
     
     return FReply::Handled();
+}
+
+void FLayoutLinkModule::ExportUSDFile(const FString& FilePath)
+{
+    UE_LOG(LogTemp, Warning, TEXT("=== Export Placeholder ==="));
+    
+    // Get selected actors count
+    USelection* Selection = GEditor->GetSelectedActors();
+    int ActorCount = Selection ? Selection->Num() : 0;
+    
+    // Create a simple text file as placeholder
+    FString FileContent = FString::Printf(
+        TEXT("# LayoutLink Export Placeholder\n")
+        TEXT("# Selected Actors: %d\n")
+        TEXT("# Timestamp: %s\n")
+        TEXT("# Artist: %s\n")
+        TEXT("# From: Unreal Engine\n")
+        TEXT("\n")
+        TEXT("# TODO: Geometry export requires Unreal's USD exporter API\n")
+        TEXT("# which is currently in beta and has C++ integration issues.\n"),
+        ActorCount,
+        *FDateTime::UtcNow().ToString(),
+        *FPlatformProcess::UserName()
+    );
+    
+    // Write to file
+    FFileHelper::SaveStringToFile(FileContent, *FilePath);
+    
+    UE_LOG(LogTemp, Warning, TEXT("Created placeholder file"));
+    
+    if (StatusTextWidget.IsValid())
+    {
+        StatusTextWidget->SetText(FText::FromString(
+            TEXT("Placeholder file created.\n\nNote: Full USD geometry export from Unreal\nrequires additional development due to\nUnreal 5.6 USD API limitations.")
+        ));
+    }
 }
 
 // ============================================================================
