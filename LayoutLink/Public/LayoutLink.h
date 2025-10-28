@@ -22,6 +22,7 @@ private:
 #endif
 
 	FReply OnImportButtonClicked();
+	FReply OnExportButtonClicked();
 	void ImportUSDFile(const FString& FilePath);
 	FString ReadMetadataFromUSD(const FString& FilePath);
 
