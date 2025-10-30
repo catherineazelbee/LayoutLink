@@ -56,10 +56,11 @@ def export_selected_to_usd(file_path, asset_library_dir):
     
     unreal.log(f"Exporting {len(selected_actors)} actor(s)")
     
-    # STEP 2: Verify asset library exists
-    if not os.path.exists(asset_library_dir):
-        unreal.log_error(f"Asset library directory not found: {asset_library_dir}")
-        return {"success": False, "error": "Asset library not found"}
+    # STEP 2: Check if asset library exists (optional)
+    asset_library_exists = os.path.exists(asset_library_dir)
+    if not asset_library_exists:
+        unreal.log_warning(f"Asset library not found: {asset_library_dir}")
+        unreal.log_warning("Exporting transforms only (no mesh references)")
     
     # STEP 3: Import USD Python modules
     try:
@@ -111,20 +112,30 @@ def export_selected_to_usd(file_path, asset_library_dir):
             
             if static_mesh:
                 mesh_name = sanitize_name(static_mesh.get_name())
+                unreal.log(f"  DEBUG: Raw mesh name: {static_mesh.get_name()}")
+                unreal.log(f"  DEBUG: Sanitized mesh name: {mesh_name}")
+                
                 mesh_file = f"{mesh_name}.usda"
                 mesh_full_path = os.path.join(asset_library_dir, mesh_file)
                 
-                # Check if mesh USD file exists
-                if os.path.exists(mesh_full_path):
+                unreal.log(f"  DEBUG: Looking for: {mesh_full_path}")
+                unreal.log(f"  DEBUG: File exists: {os.path.exists(mesh_full_path)}")
+                unreal.log(f"  DEBUG: Asset library exists: {asset_library_exists}")
+                
+                # Check if mesh USD file exists (only if asset library exists)
+                if asset_library_exists and os.path.exists(mesh_full_path):
                     # Get relative path from layout file to mesh file
                     mesh_usd_path = get_relative_path(abs_file_path, mesh_full_path)
                     unreal.log(f"  Mesh: {mesh_name} -> {mesh_usd_path}")
-                else:
+                elif asset_library_exists:
                     unreal.log_warning(f"  Mesh USD not found: {mesh_file}")
                     missing_meshes.append(mesh_name)
+                else:
+                    # Asset library doesn't exist - just note the mesh
+                    unreal.log(f"  Mesh: {mesh_name} (no reference - library not found)")
         
-        # Create prim for this actor
-        xform_prim = stage.DefinePrim(prim_path, "Xform")
+        # Create prim for this actor - use OverridePrim so reference type wins
+        xform_prim = stage.OverridePrim(prim_path)
         
         # Add USD reference to mesh if available
         if mesh_usd_path:

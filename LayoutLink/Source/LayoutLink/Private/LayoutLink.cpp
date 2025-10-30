@@ -461,14 +461,17 @@ void FLayoutLinkModule::ExportUSDFile(const FString& FilePath)
     UE_LOG(LogTemp, Warning, TEXT("Python script path: %s"), *PythonScriptPath);
     
     // STEP 2: Build Python command
+    FString AssetLibraryPath = TEXT("C:/SharedUSD/assets");  // ← NEW
+    
     FString PythonScript = FString::Printf(
         TEXT("import sys; "
              "sys.path.append(r'%s'); "
              "import layout_export; "
-             "result = layout_export.export_selected_to_usd(r'%s'); "
+             "result = layout_export.export_selected_to_usd(r'%s', r'%s'); "
              "print('Export result:', result)"),
         *PythonScriptPath,
-        *FilePath
+        *FilePath,
+        *AssetLibraryPath
     );
     
     // STEP 3: Execute Python

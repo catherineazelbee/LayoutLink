@@ -3,6 +3,7 @@ LayoutLink USD Import (Python)
 """
 
 import unreal
+import os
 
 def import_usd_from_maya(file_path):
     """Import USD from Maya"""
@@ -10,7 +11,6 @@ def import_usd_from_maya(file_path):
     unreal.log(f"File: {file_path}")
     
     # Check file exists
-    import os
     if not os.path.exists(file_path):
         unreal.log_error("File not found")
         return {"success": False}
@@ -37,9 +37,13 @@ def import_usd_from_maya(file_path):
         unreal.log_error("Failed to spawn actor")
         return {"success": False}
     
-    # Load USD file
+    # Load USD file - FIXED: Use absolute path with dictionary
     stage_actor.set_actor_label("MayaLayoutImport")
-    stage_actor.set_editor_property("root_layer", file_path)
+    
+    abs_file_path = os.path.abspath(file_path)
+    unreal.log(f"Absolute path: {abs_file_path}")
+    
+    stage_actor.set_editor_property("root_layer", {"file_path": abs_file_path})
     stage_actor.set_editor_property("time", 0.0)
     
     unreal.log("=== Import Complete ===")
