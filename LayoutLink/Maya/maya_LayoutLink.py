@@ -244,50 +244,75 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
     def on_export_layout(self):
         """Export selected objects as layout with references"""
-        self.log("\n=== Starting Layout Export ===")
-        
-        # Save settings
-        Config.set_asset_library(self.asset_library_input.text())
-        Config.set_layout_export(self.layout_export_input.text())
-        
-        asset_lib = Config.get_asset_library()
-        layout_dir = Config.get_layout_export()
-
-        # Check selection
-        selection = cmds.ls(selection=True)
-        if not selection:
-            QtWidgets.QMessageBox.warning(
-                self, "No Selection",
-                "Please select one or more objects before exporting."
-            )
-            self.log("ERROR: No objects selected")
-            return
-
-        # Create layout directory if needed
-        if not os.path.exists(layout_dir):
-            os.makedirs(layout_dir)
-
-        # Get filename from user
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        default_name = f"maya_layout_{timestamp}.usda"
-        
-        file_path = cmds.fileDialog2(
-            fileFilter="USD Files (*.usda);;All Files (*.*)",
-            dialogStyle=2,
-            fileMode=0,  # Save
-            caption="Save Layout File",
-            startingDirectory=layout_dir,
-            okCaption="Save"
-        )
-        
-        if not file_path:
-            self.log("Export cancelled")
-            return
-
-        self.log(f"Exporting to: {file_path[0]}")
-        self.log(f"Using asset library: {asset_lib}")
-        
         try:
+            self.log("\n=== Starting Layout Export ===")
+            
+            # Save settings
+            Config.set_asset_library(self.asset_library_input.text())
+            Config.set_layout_export(self.layout_export_input.text())
+            
+            asset_lib = Config.get_asset_library()
+            layout_dir = Config.get_layout_export()
+
+            # Check selection
+            selection = cmds.ls(selection=True)
+            if not selection:
+                QtWidgets.QMessageBox.warning(
+                    self, "No Selection",
+                    "Please select one or more objects before exporting."
+                )
+                self.log("ERROR: No objects selected")
+                return
+
+            # Create layout directory if needed
+            if not os.path.exists(layout_dir):
+                os.makedirs(layout_dir)
+                self.log(f"Created directory: {layout_dir}")
+
+            # Get filename - Use QTimer to defer dialog after Qt events
+            self.log("Preparing file dialog...")
+            
+            # Store context for deferred execution
+            self._export_context = {
+                'asset_lib': asset_lib,
+                'layout_dir': layout_dir
+            }
+            
+            # Use QTimer.singleShot to delay dialog until after button click completes
+            QtCore.QTimer.singleShot(0, self._show_export_dialog)
+            
+        except Exception as e:
+            self.log(f"ERROR in on_export_layout: {e}")
+            import traceback
+            self.log(traceback.format_exc())
+
+    def _show_export_dialog(self):
+        """Deferred function to show export dialog (called via QTimer)"""
+        try:
+            asset_lib = self._export_context['asset_lib']
+            layout_dir = self._export_context['layout_dir']
+            
+            self.log("Opening file dialog...")
+            
+            # Get filename from user
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            file_path = cmds.fileDialog2(
+                fileFilter="USD Files (*.usda);;All Files (*.*)",
+                dialogStyle=2,
+                fileMode=0,  # Save
+                caption="Save Layout File",
+                startingDirectory=layout_dir,
+                okCaption="Save"
+            )
+            
+            if not file_path:
+                self.log("Export cancelled - no file selected")
+                return
+
+            self.log(f"Exporting to: {file_path[0]}")
+            self.log(f"Using asset library: {asset_lib}")
+            
             # Call backend export
             result = maya_layout_export.export_selected_to_usd(
                 file_path[0],
@@ -310,7 +335,7 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
                 self.log(f"✗ Export failed: {result.get('error', 'Unknown error')}")
                 
         except Exception as e:
-            self.log(f"✗ ERROR: {e}")
+            self.log(f"✗ ERROR in _show_export_dialog: {e}")
             import traceback
             self.log(traceback.format_exc())
             QtWidgets.QMessageBox.critical(

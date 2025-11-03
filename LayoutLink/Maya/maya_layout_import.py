@@ -1,6 +1,7 @@
 """
 LayoutLink USD Import for Maya
 Imports Unreal layouts as USD Stages (NOT File→Import!)
+Automatically handles Z-up to Y-up conversion
 """
 
 import maya.cmds as cmds
@@ -10,9 +11,11 @@ def import_usd_from_unreal(file_path):
     """
     Import USD layout from Unreal as a USD Stage.
     
-    CRITICAL: Uses mayaUsdCreateStageFromFile, NOT File→Import!
+    CRITICAL: Uses proxy shape creation, NOT File→Import!
     File→Import converts to Maya data and flattens references.
     USD Stage preserves references and USD composition.
+    
+    Automatically rotates Z-up stages (Unreal) to display correctly in Y-up Maya.
     
     Args:
         file_path (str): Path to USD layout file from Unreal
@@ -23,37 +26,58 @@ def import_usd_from_unreal(file_path):
     print("=== Layout Import Starting ===")
     print(f"File: {file_path}")
     
+    # Load mayaUsd plugin if not loaded
+    if not cmds.pluginInfo('mayaUsdPlugin', query=True, loaded=True):
+        try:
+            cmds.loadPlugin('mayaUsdPlugin')
+            print("✓ Loaded mayaUsd plugin")
+        except:
+            print("ERROR: Could not load mayaUsd plugin")
+            return {"success": False, "error": "mayaUsd plugin not available"}
+    
     # Check file exists
     if not os.path.exists(file_path):
         print("ERROR: File not found")
         return {"success": False, "error": "File not found"}
     
     try:
-        # Import as USD Stage (NOT File→Import!)
-        # This preserves USD references and composition
-        stage_nodes = cmds.mayaUsdCreateStageFromFile(
-            filePath=file_path,
-            primPath='/'
-        )
+        from pxr import Usd, UsdGeom, Sdf
         
-        if not stage_nodes:
-            print("ERROR: Failed to create USD stage")
-            return {"success": False, "error": "Failed to create stage"}
+        # STEP 1: Check the up axis of the incoming file
+        temp_stage = Usd.Stage.Open(file_path)
+        stage_up_axis = UsdGeom.GetStageUpAxis(temp_stage)
+        is_z_up = (stage_up_axis == UsdGeom.Tokens.z)
         
-        # stage_nodes returns [transform, shape]
-        stage_transform = stage_nodes[0]
-        stage_shape = stage_nodes[1]
+        print(f"File up axis: {stage_up_axis}")
+        print(f"Maya up axis: Y")
         
-        # Rename for clarity
+        if is_z_up:
+            print("⚠ Z-up file detected - will apply rotation for Maya")
+        
+        # STEP 2: Create transform node
+        transform_node = cmds.createNode('transform', name='UnrealLayout_temp')
+        
+        # STEP 3: Create USD proxy shape under it
+        shape_node = cmds.createNode('mayaUsdProxyShape', parent=transform_node)
+        
+        # STEP 4: Set the USD file path
+        cmds.setAttr(f'{shape_node}.filePath', file_path, type='string')
+        
+        # STEP 5: Rename for clarity
         base_name = os.path.splitext(os.path.basename(file_path))[0]
-        stage_transform = cmds.rename(stage_transform, f"UnrealLayout_{base_name}")
+        transform_node = cmds.rename(transform_node, f"UnrealLayout_{base_name}")
         
-        print(f"✓ Created USD Stage: {stage_transform}")
-        print(f"  Shape node: {stage_shape}")
+        # STEP 6: Apply rotation correction if Z-up
+        if is_z_up:
+            # Z-up to Y-up: Rotate -90 degrees around X axis
+            cmds.setAttr(f'{transform_node}.rotateX', -90)
+            print("✓ Applied Z-up to Y-up conversion (rotated -90° around X)")
         
-        # Try to read metadata
+        print(f"✓ Created USD Stage: {transform_node}")
+        print(f"  Shape node: {shape_node}")
+        
+        # STEP 7: Try to read metadata
         try:
-            from pxr import Sdf
             import maya_metadata_utils
             
             layer = Sdf.Layer.FindOrOpen(file_path)
@@ -65,19 +89,22 @@ def import_usd_from_unreal(file_path):
                     print(f"Artist: {metadata.get('layoutlink_artist', 'Unknown')}")
                     print(f"Date: {metadata.get('layoutlink_timestamp', 'Unknown')}")
                     print("=" * 50)
-        except:
-            pass  # Metadata is optional
+        except Exception as e:
+            print(f"Note: Could not read metadata: {e}")
         
         print("=== Import Complete ===")
         
         return {
             "success": True,
-            "stage_transform": stage_transform,
-            "stage_shape": stage_shape
+            "stage_transform": transform_node,
+            "stage_shape": shape_node,
+            "applied_rotation": is_z_up
         }
         
     except Exception as e:
         print(f"ERROR: Import failed: {e}")
+        import traceback
+        traceback.print_exc()
         return {"success": False, "error": str(e)}
 
 def import_with_file_dialog():
@@ -89,7 +116,8 @@ def import_with_file_dialog():
         fileFilter="USD Files (*.usd *.usda *.usdc);;All Files (*.*)",
         dialogStyle=2,
         fileMode=1,  # Single file
-        caption="Import USD Layout from Unreal"
+        caption="Import USD Layout from Unreal",
+        startingDirectory="C:/SharedUSD/layouts/unreal_layouts"
     )
     
     if file_path:

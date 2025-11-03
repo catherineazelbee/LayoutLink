@@ -95,6 +95,7 @@ def export_selected_to_usd(file_path, asset_library_dir):
     objects_with_refs = 0
     objects_without_refs = 0
     missing_meshes = []
+    cameras_exported = 0
     
     for obj in selected:
         obj_short_name = cmds.ls(obj, shortNames=True)[0]
@@ -103,14 +104,51 @@ def export_selected_to_usd(file_path, asset_library_dir):
         
         print(f"Processing: {obj_short_name}")
         
-        # Check if object has mesh shape
+        # Initialize for this object
+        is_camera = False
         has_mesh = False
         mesh_usd_path = None
+        prim_to_transform = None  # Will be set based on object type
         
+        # Check what shapes this object has
         shapes = cmds.listRelatives(obj, shapes=True, noIntermediate=True, fullPath=True)
+        
         if shapes:
             for shape in shapes:
-                if cmds.nodeType(shape) == 'mesh':
+                node_type = cmds.nodeType(shape)
+                
+                # CAMERA HANDLING
+                if node_type == 'camera':
+                    is_camera = True
+                    print(f"  Detected camera")
+                    
+                    # Create USD camera prim
+                    camera_prim = UsdGeom.Camera.Define(stage, prim_path)
+                    
+                    # Get camera attributes
+                    try:
+                        focal_length = cmds.getAttr(f"{shape}.focalLength") / 10.0  # mm to cm
+                        h_aperture = cmds.getAttr(f"{shape}.horizontalFilmAperture") * 2.54  # inches to cm
+                        v_aperture = cmds.getAttr(f"{shape}.verticalFilmAperture") * 2.54    # inches to cm
+                        near_clip = cmds.getAttr(f"{shape}.nearClipPlane")
+                        far_clip = cmds.getAttr(f"{shape}.farClipPlane")
+                        
+                        # Set USD camera attributes
+                        camera_prim.GetFocalLengthAttr().Set(focal_length)
+                        camera_prim.GetHorizontalApertureAttr().Set(h_aperture)
+                        camera_prim.GetVerticalApertureAttr().Set(v_aperture)
+                        camera_prim.GetClippingRangeAttr().Set((near_clip, far_clip))
+                        
+                        print(f"  Camera attrs: focal={focal_length:.2f}cm, aperture={h_aperture:.2f}x{v_aperture:.2f}cm")
+                    except Exception as e:
+                        print(f"  Warning: Could not get all camera attributes: {e}")
+                    
+                    cameras_exported += 1
+                    prim_to_transform = camera_prim
+                    break
+                    
+                # MESH HANDLING
+                elif node_type == 'mesh':
                     has_mesh = True
                     mesh_name = sanitize_name(obj_short_name)
                     mesh_file = f"{mesh_name}.usda"
@@ -127,45 +165,54 @@ def export_selected_to_usd(file_path, asset_library_dir):
                         print(f"  Mesh: {mesh_name} (no reference - library not found)")
                     break
         
-        # Create prim - use OverridePrim so reference type wins
-        xform_prim = stage.OverridePrim(prim_path)
+        # Create prim if not already created (cameras already have their prim)
+        if not is_camera:
+            # Create mesh prim - use OverridePrim so reference type wins
+            xform_prim = stage.OverridePrim(prim_path)
+            
+            # Add USD reference to mesh if available
+            if mesh_usd_path:
+                references = xform_prim.GetReferences()
+                references.AddReference(mesh_usd_path)
+                objects_with_refs += 1
+                print(f"  ✓ Added reference to: {mesh_usd_path}")
+            else:
+                objects_without_refs += 1
+            
+            prim_to_transform = xform_prim
+            
+            # Add mesh metadata
+            if has_mesh:
+                maya_obj_attr = xform_prim.CreateAttribute("maya:objectName", Sdf.ValueTypeNames.String)
+                maya_obj_attr.Set(obj_short_name)
         
-        # Add USD reference to mesh if available
-        if mesh_usd_path:
-            references = xform_prim.GetReferences()
-            references.AddReference(mesh_usd_path)
-            objects_with_refs += 1
-            print(f"  ✓ Added reference to: {mesh_usd_path}")
-        else:
-            objects_without_refs += 1
-        
-        # Get transform from Maya
-        translation = cmds.xform(obj, query=True, worldSpace=True, translation=True)
-        rotation = cmds.xform(obj, query=True, worldSpace=True, rotation=True)
-        scale = cmds.xform(obj, query=True, worldSpace=True, scale=True)
-        
-        # Set transform in USD
-        xformable = UsdGeom.Xformable(xform_prim)
-        xformable.ClearXformOpOrder()
-        
-        # Add transform operations
-        translate_op = xformable.AddTranslateOp()
-        translate_op.Set((translation[0], translation[1], translation[2]))
-        
-        # Maya rotation (XYZ order)
-        rotate_op = xformable.AddRotateXYZOp()
-        rotate_op.Set((rotation[0], rotation[1], rotation[2]))
-        
-        scale_op = xformable.AddScaleOp()
-        scale_op.Set((scale[0], scale[1], scale[2]))
-        
-        # Add metadata attributes
-        if has_mesh:
-            maya_obj_attr = xform_prim.CreateAttribute("maya:objectName", Sdf.ValueTypeNames.String)
-            maya_obj_attr.Set(obj_short_name)
-        
-        maya_label_attr = xform_prim.CreateAttribute("maya:originalName", Sdf.ValueTypeNames.String)
-        maya_label_attr.Set(obj_short_name)
+        # SET TRANSFORM (works for both cameras and meshes)
+        if prim_to_transform:
+            translation = cmds.xform(obj, query=True, worldSpace=True, translation=True)
+            rotation = cmds.xform(obj, query=True, worldSpace=True, rotation=True)
+            scale = cmds.xform(obj, query=True, worldSpace=True, scale=True)
+            
+            xformable = UsdGeom.Xformable(prim_to_transform)
+            xformable.ClearXformOpOrder()
+            
+            # Add transform operations
+            translate_op = xformable.AddTranslateOp()
+            translate_op.Set((translation[0], translation[1], translation[2]))
+            
+            # Maya rotation (XYZ order)
+            rotate_op = xformable.AddRotateXYZOp()
+            rotate_op.Set((rotation[0], rotation[1], rotation[2]))
+            
+            scale_op = xformable.AddScaleOp()
+            scale_op.Set((scale[0], scale[1], scale[2]))
+            
+            # Add original name attribute - use GetPrim() for cameras
+            if is_camera:
+                maya_label_attr = prim_to_transform.GetPrim().CreateAttribute("maya:originalName", Sdf.ValueTypeNames.String)
+            else:
+                maya_label_attr = prim_to_transform.CreateAttribute("maya:originalName", Sdf.ValueTypeNames.String)
+            
+            maya_label_attr.Set(obj_short_name)
         
         exported_count += 1
     
@@ -181,6 +228,7 @@ def export_selected_to_usd(file_path, asset_library_dir):
     custom_data = dict(root_layer.customLayerData)
     custom_data["layoutlink_objects_with_refs"] = objects_with_refs
     custom_data["layoutlink_objects_without_refs"] = objects_without_refs
+    custom_data["layoutlink_cameras_exported"] = cameras_exported
     custom_data["layoutlink_asset_library"] = os.path.basename(asset_library_dir)
     root_layer.customLayerData = custom_data
     
@@ -194,8 +242,9 @@ def export_selected_to_usd(file_path, asset_library_dir):
     print("=" * 60)
     print("Export Summary:")
     print(f"  Total objects: {exported_count}")
-    print(f"  With mesh references: {objects_with_refs}")
-    print(f"  Without references: {objects_without_refs}")
+    print(f"  Meshes with references: {objects_with_refs}")
+    print(f"  Meshes without references: {objects_without_refs}")
+    print(f"  Cameras: {cameras_exported}")
     if missing_meshes:
         print(f"  Missing mesh assets: {len(missing_meshes)}")
         for mesh in missing_meshes:
@@ -210,6 +259,7 @@ def export_selected_to_usd(file_path, asset_library_dir):
         "object_count": exported_count,
         "objects_with_refs": objects_with_refs,
         "objects_without_refs": objects_without_refs,
+        "cameras_exported": cameras_exported,
         "missing_meshes": missing_meshes,
         "file_path": abs_file_path,
         "file_size": file_size

@@ -55,6 +55,17 @@ def export_mesh_to_usd(mesh_transform, output_dir):
         
         shape_node = shapes[0]
         
+        # Remove old file from disk if it exists
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        
+        # Clear from USD layer cache if it's cached
+        existing_layer = Sdf.Layer.Find(output_path)
+        if existing_layer:
+            # Clear the cached layer
+            existing_layer.Clear()
+            print(f"  Cleared cached USD layer")
+        
         # Create USD stage
         stage = Usd.Stage.CreateNew(output_path)
         
@@ -66,11 +77,11 @@ def export_mesh_to_usd(mesh_transform, output_dir):
         mesh_prim = UsdGeom.Mesh.Define(stage, f"/{safe_name}")
         
         # Get Maya mesh data
-        # VERTICES
+        # VERTICES - Use OBJECT space, not world space!
         vtx_count = cmds.polyEvaluate(shape_node, vertex=True)
         points = []
         for i in range(vtx_count):
-            pos = cmds.xform(f"{shape_node}.vtx[{i}]", q=True, worldSpace=True, translation=True)
+            pos = cmds.xform(f"{shape_node}.vtx[{i}]", q=True, objectSpace=True, translation=True)
             points.append((pos[0], pos[1], pos[2]))
         
         mesh_prim.GetPointsAttr().Set(points)

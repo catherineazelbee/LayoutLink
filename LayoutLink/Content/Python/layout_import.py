@@ -1,12 +1,13 @@
 """
 LayoutLink USD Import (Python)
+Imports USD from Maya including meshes and cameras
 """
 
 import unreal
 import os
 
 def import_usd_from_maya(file_path):
-    """Import USD from Maya"""
+    """Import USD from Maya with mesh and camera support"""
     unreal.log("=== Python Import Starting ===")
     unreal.log(f"File: {file_path}")
     
@@ -37,7 +38,7 @@ def import_usd_from_maya(file_path):
         unreal.log_error("Failed to spawn actor")
         return {"success": False}
     
-    # Load USD file - FIXED: Use absolute path with dictionary
+    # Load USD file - Use absolute path with dictionary
     stage_actor.set_actor_label("MayaLayoutImport")
     
     abs_file_path = os.path.abspath(file_path)
@@ -45,6 +46,25 @@ def import_usd_from_maya(file_path):
     
     stage_actor.set_editor_property("root_layer", {"file_path": abs_file_path})
     stage_actor.set_editor_property("time", 0.0)
+    
+    # Try to read USD and check for cameras
+    try:
+        from pxr import Usd, UsdGeom
+        
+        stage = Usd.Stage.Open(abs_file_path)
+        camera_count = 0
+        
+        for prim in stage.TraverseAll():
+            if prim.GetTypeName() == "Camera":
+                camera_count += 1
+                unreal.log(f"Found camera in USD: {prim.GetPath()}")
+        
+        if camera_count > 0:
+            unreal.log(f"Note: {camera_count} camera(s) found in USD")
+            unreal.log("Cameras imported as USD prims (visible in USD Stage Editor)")
+            
+    except:
+        pass  # Camera detection is optional
     
     unreal.log("=== Import Complete ===")
     return {"success": True}

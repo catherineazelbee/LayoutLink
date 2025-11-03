@@ -110,67 +110,99 @@ void FLayoutLinkModule::ShutdownModule()
 #if WITH_EDITOR
 TSharedRef<SDockTab> FLayoutLinkModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
-    // This function builds the UI inside the LayoutLink window
-    // Called whenever the user opens the LayoutLink tab
-    
     return SNew(SDockTab)
         .TabRole(ETabRole::NomadTab)
         [
-            // Main vertical container - stacks all widgets from top to bottom
             SNew(SVerticalBox)
             
             // ============================================================
-            // HEADER TEXT
+            // HEADER
             // ============================================================
             + SVerticalBox::Slot()
-            .AutoHeight()  // Only takes the height it needs
-            .Padding(10.0f)  // 10 pixels of padding around the widget
+            .AutoHeight()
+            .Padding(10.0f)
             [
                 SNew(STextBlock)
-                .Text(FText::FromString("LayoutLink - Maya to Unreal"))
-                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 16))
+                .Text(FText::FromString("LayoutLink - Professional USD Pipeline"))
+                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 14))
                 .Justification(ETextJustify::Center)
             ]
             
             // ============================================================
-            // IMPORT BUTTON (Green)
+            // EXPORT TO MAYA SECTION
             // ============================================================
             + SVerticalBox::Slot()
             .AutoHeight()
-            .Padding(10.0f)
+            .Padding(10.0f, 5.0f)
             [
-                SNew(SButton)
-                .Text(FText::FromString("IMPORT USD FROM MAYA"))
-                .OnClicked_Raw(this, &FLayoutLinkModule::OnImportButtonClicked)
+                SNew(STextBlock)
+                .Text(FText::FromString("Export to Maya"))
+                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
             ]
             
-            // ============================================================
-            // EXPORT BUTTON (Blue) - NEW!
-            // ============================================================
+            // Export Mesh Library Button (Blue)
             + SVerticalBox::Slot()
             .AutoHeight()
-            .Padding(10.0f)
+            .Padding(10.0f, 5.0f)
             [
                 SNew(SButton)
-                .Text(FText::FromString("EXPORT TO MAYA"))
-                .ButtonColorAndOpacity(FLinearColor(0.2f, 0.6f, 1.0f))  // Blue tint
+                .Text(FText::FromString("Export Mesh Library (Selected)"))
+                .ButtonColorAndOpacity(FLinearColor(0.13f, 0.59f, 0.95f))  // Blue
+                .OnClicked_Raw(this, &FLayoutLinkModule::OnExportMeshLibraryClicked)
+            ]
+            
+            // Export Layout Button (Green)
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(10.0f, 5.0f)
+            [
+                SNew(SButton)
+                .Text(FText::FromString("Export Layout (Selected)"))
+                .ButtonColorAndOpacity(FLinearColor(0.3f, 0.69f, 0.31f))  // Green
                 .OnClicked_Raw(this, &FLayoutLinkModule::OnExportButtonClicked)
             ]
             
             // ============================================================
-            // STATUS TEXT AREA (with scrolling)
+            // IMPORT FROM MAYA SECTION
             // ============================================================
             + SVerticalBox::Slot()
-            .FillHeight(1.0f)  // Takes all remaining vertical space
+            .AutoHeight()
+            .Padding(10.0f, 15.0f, 10.0f, 5.0f)
+            [
+                SNew(STextBlock)
+                .Text(FText::FromString("Import from Maya"))
+                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
+            ]
+            
+            // Import Button (Orange)
+            + SVerticalBox::Slot()
+            .AutoHeight()
+            .Padding(10.0f, 5.0f)
+            [
+                SNew(SButton)
+                .Text(FText::FromString("Import Layout from Maya"))
+                .ButtonColorAndOpacity(FLinearColor(1.0f, 0.6f, 0.0f))  // Orange
+                .OnClicked_Raw(this, &FLayoutLinkModule::OnImportButtonClicked)
+            ]
+            
+            // ============================================================
+            // STATUS TEXT AREA
+            // ============================================================
+            + SVerticalBox::Slot()
+            .FillHeight(1.0f)
             .Padding(10.0f)
             [
-                SNew(SScrollBox)  // Allows scrolling if text is long
+                SNew(SScrollBox)
                 + SScrollBox::Slot()
                 [
-                    // SAssignNew saves a pointer to this widget so we can update it later
                     SAssignNew(StatusTextWidget, STextBlock)
-                    .Text(FText::FromString("Click Import to load USD files from Maya\n\nShared Folder: C:/SharedUSD/unreal_exports"))
-                    .AutoWrapText(true)  // Wrap long lines
+                    .Text(FText::FromString(
+                        "LayoutLink Ready\n\n"
+                        "Asset Library: C:/SharedUSD/assets/unreal\n"
+                        "Layout Export: C:/SharedUSD/layouts/unreal_layouts\n\n"
+                        "Select actors and click export buttons."
+                    ))
+                    .AutoWrapText(true)
                 ]
             ]
         ];
@@ -461,7 +493,7 @@ void FLayoutLinkModule::ExportUSDFile(const FString& FilePath)
     UE_LOG(LogTemp, Warning, TEXT("Python script path: %s"), *PythonScriptPath);
     
     // STEP 2: Build Python command
-    FString AssetLibraryPath = TEXT("C:/SharedUSD/assets");  // ← NEW
+    FString AssetLibraryPath = TEXT("C:/SharedUSD/assets/unreal");
     
     FString PythonScript = FString::Printf(
         TEXT("import sys; "
@@ -503,6 +535,84 @@ void FLayoutLinkModule::ExportUSDFile(const FString& FilePath)
             ));
         }
     }
+}
+
+
+// MESH LIBRARY EXPORT
+FReply FLayoutLinkModule::OnExportMeshLibraryClicked()
+{
+    UE_LOG(LogTemp, Warning, TEXT("=== Starting Mesh Library Export ==="));
+    
+    // Check if anything is selected
+    USelection* SelectedActors = GEditor->GetSelectedActors();
+    if (!SelectedActors || SelectedActors->Num() == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("No actors selected"));
+        
+        if (StatusTextWidget.IsValid())
+        {
+            StatusTextWidget->SetText(FText::FromString(
+                TEXT("ERROR: No actors selected!\n\nPlease select actors with static meshes before exporting.")
+            ));
+        }
+        return FReply::Handled();
+    }
+    
+    UE_LOG(LogTemp, Warning, TEXT("Exporting mesh library from %d actor(s)"), SelectedActors->Num());
+    
+    // Get plugin directory
+    TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
+    if (!Plugin.IsValid())
+    {
+        UE_LOG(LogTemp, Error, TEXT("Could not find LayoutLink plugin"));
+        return FReply::Handled();
+    }
+    
+    FString PythonScriptPath = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Content/Python"));
+    FString AssetLibraryPath = TEXT("C:/SharedUSD/assets/unreal");
+    
+    // Build Python command to export mesh library
+    FString PythonScript = FString::Printf(
+        TEXT("import sys; "
+             "sys.path.append(r'%s'); "
+             "import mesh_export; "
+             "result = mesh_export.export_selected_meshes_library(r'%s'); "
+             "print('Mesh export result:', result)"),
+        *PythonScriptPath,
+        *AssetLibraryPath
+    );
+    
+    // Execute Python
+    FPythonCommandEx PythonCommand;
+    PythonCommand.Command = PythonScript;
+    PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
+    
+    bool bSuccess = IPythonScriptPlugin::Get()->ExecPythonCommand(*PythonCommand.Command);
+    
+    if (bSuccess)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Mesh library export completed"));
+        
+        if (StatusTextWidget.IsValid())
+        {
+            StatusTextWidget->SetText(FText::FromString(
+                TEXT("Mesh Library Export Complete!\n\nCheck Output Log for details.")
+            ));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Mesh library export failed"));
+        
+        if (StatusTextWidget.IsValid())
+        {
+            StatusTextWidget->SetText(FText::FromString(
+                TEXT("ERROR: Mesh export failed!\n\nCheck Output Log for details.")
+            ));
+        }
+    }
+    
+    return FReply::Handled();
 }
 
 // ============================================================================

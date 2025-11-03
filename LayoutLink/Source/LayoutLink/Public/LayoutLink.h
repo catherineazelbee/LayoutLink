@@ -23,6 +23,7 @@ private:
 
 	FReply OnImportButtonClicked();
 	FReply OnExportButtonClicked();
+	FReply OnExportMeshLibraryClicked();
 	void ExportUSDFile(const FString &FilePath);
 	void ImportUSDFile(const FString &FilePath);
 	FString ReadMetadataFromUSD(const FString &FilePath);
