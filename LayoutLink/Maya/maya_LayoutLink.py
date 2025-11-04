@@ -21,7 +21,6 @@ if current_dir not in sys.path:
 import maya_mesh_export
 import maya_layout_export
 import maya_layout_import
-import maya_camera_utils  # NEW!
 
 from PySide6 import QtWidgets, QtCore
 from shiboken6 import wrapInstance
@@ -176,24 +175,7 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         """)
         self.import_btn.clicked.connect(self.on_import_layout)
         import_layout.addWidget(self.import_btn)
-
-        # Create Maya Cameras Button (NEW!)
-        self.create_cameras_btn = QtWidgets.QPushButton("🎬 Create Maya Cameras from USD")
-        self.create_cameras_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #9C27B0;
-                color: white;
-                font-size: 12px;
-                font-weight: bold;
-                padding: 10px;
-                border-radius: 5px;
-            }
-            QPushButton:hover { background-color: #7B1FA2; }
-            QPushButton:pressed { background-color: #6A1B9A; }
-        """)
-        self.create_cameras_btn.clicked.connect(self.on_create_maya_cameras)
-        import_layout.addWidget(self.create_cameras_btn)
-
+        
         import_group.setLayout(import_layout)
         main_layout.addWidget(import_group)
 
@@ -366,7 +348,6 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
                     self, "Import Complete",
                     f"Layout imported as USD Stage!\n\n"
                     f"Stage: {result['stage_transform']}\n\n"
-                    f"Click 'Create Maya Cameras' to make lookthrough-able cameras."
                 )
             else:
                 if result.get("error") != "Cancelled":
@@ -376,40 +357,6 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             self.log(f"ERROR: {e}")
             import traceback
             self.log(traceback.format_exc())
-
-    def on_create_maya_cameras(self):
-        """Create native Maya cameras from USD cameras"""
-        self.log("\n=== Creating Maya Cameras from USD ===")
-        
-        try:
-            created_cameras = maya_camera_utils.create_maya_cameras_from_all_usd_stages()
-            
-            if created_cameras:
-                self.log(f"Success! Created {len(created_cameras)} Maya camera(s)")
-                for cam in created_cameras:
-                    self.log(f"  - {cam}")
-                
-                # Select first camera
-                cmds.select(created_cameras[0], replace=True)
-                
-                QtWidgets.QMessageBox.information(
-                    self, "Cameras Created",
-                    f"Created {len(created_cameras)} native Maya camera(s)!\n\n"
-                    f"Cameras:\n" + "\n".join(f"  • {cam}" for cam in created_cameras) + "\n\n"
-                    f"Look through: Panels → Look Through Selected"
-                )
-            else:
-                self.log("No USD cameras found")
-                QtWidgets.QMessageBox.information(
-                    self, "No Cameras Found",
-                    "No USD cameras found in imported stages."
-                )
-                
-        except Exception as e:
-            self.log(f"ERROR: {e}")
-            import traceback
-            self.log(traceback.format_exc())
-
     # ========================================================================
     # HELPER FUNCTIONS
     # ========================================================================
