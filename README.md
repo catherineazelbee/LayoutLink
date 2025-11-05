@@ -54,11 +54,11 @@ LayoutLink enables seamless scene data exchange using industry-standard USD (Uni
    import maya_LayoutLink
    maya_LayoutLink.show_ui()
    ```
-3. UI appears as dockable panel
+3. UI will appear
 
 ### Unreal Engine
 1. Copy `LayoutLink` plugin folder to `Plugins/`
-2. Regenerate project files
+2. Regenerate project files (Right click .uproject file → Show more options)
 3. Compile plugin
 4. Open LayoutLink from: **Window → LayoutLink** or toolbar button
 
