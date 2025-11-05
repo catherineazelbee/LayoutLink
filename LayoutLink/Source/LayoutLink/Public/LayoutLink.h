@@ -28,6 +28,16 @@ private:
 	void ImportUSDFile(const FString &FilePath);
 	FString ReadMetadataFromUSD(const FString &FilePath);
 
+	// User-editable settings
+	FString AssetLibraryPath;   // e.g. C:/SharedUSD/assets/unreal
+	FString LayoutExportDir;    // e.g. C:/SharedUSD/layouts/unreal_layouts
+
+	// UI callbacks for the settings controls
+	FReply OnBrowseAssetLibrary();
+	FReply OnBrowseLayoutExport();
+	void   LoadSettings();
+	void   SaveSettings();
+
 private:
 	TSharedPtr<class FUICommandList> PluginCommands;
 	TSharedPtr<class STextBlock> StatusTextWidget;

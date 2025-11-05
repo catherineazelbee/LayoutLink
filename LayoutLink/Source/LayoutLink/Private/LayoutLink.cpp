@@ -1,661 +1,674 @@
 // LayoutLink.cpp
-// Main implementation file for the LayoutLink plugin
-// Handles USD import from Maya and (soon) export to Maya
 
 #include "LayoutLink.h"
 
-// For finding plugin directory
-#include "Interfaces/IPluginManager.h"
-
-// Unreal framework includes
-#include "Framework/Application/SlateApplication.h"
-#include "Misc/Paths.h"
-#include "Interfaces/IMainFrameModule.h"
-
-#if WITH_EDITOR
-#include "Editor.h"
 #include "LevelEditor.h"
 #include "ToolMenus.h"
-#endif
-
-// Plugin-specific includes
-#include "LayoutLinkCommands.h"
-#include "LayoutLinkStyle.h"
-
-// UI framework includes
-#include "Framework/Docking/TabManager.h"
-#include "Framework/Commands/UICommandList.h"
-#include "Containers/StringConv.h"
-#include "Widgets/SBoxPanel.h"
-#include "Styling/CoreStyle.h"
-
-// Slate UI widgets
 #include "Widgets/Docking/SDockTab.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SSeparator.h"
+#include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
-#include "Widgets/Input/SButton.h"
-#include "Widgets/Layout/SScrollBox.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 
-// Unreal selection and export
-#include "Selection.h"
-
-// Unreal's USD integration
-#include "USDStageActor.h"
-
-// File dialog system
-#include "DesktopPlatformModule.h"
 #include "IDesktopPlatform.h"
+#include "DesktopPlatformModule.h"
+#include "Interfaces/IMainFrameModule.h"
 
-// Python integration
+#include "Interfaces/IPluginManager.h"
+#include "Modules/ModuleManager.h"
+#include "Misc/Paths.h"
+#include "Misc/DateTime.h"
+#include "Misc/MessageDialog.h"
+#include "Misc/ConfigCacheIni.h"
+
 #include "IPythonScriptPlugin.h"
-#include "PythonScriptTypes.h"
-
-// Tab name for the LayoutLink window
-static const FName LayoutLinkTabName("LayoutLink");
+#include "HAL/PlatformFilemanager.h"
+#include "Styling/AppStyle.h"
+#include "Styling/CoreStyle.h"
 
 #define LOCTEXT_NAMESPACE "FLayoutLinkModule"
 
-// ============================================================================
-// MODULE LIFECYCLE
-// ============================================================================
+// ---------------------------
+// Tab + Menu Registration
+// ---------------------------
+
+static const FName LayoutLinkTabName(TEXT("LayoutLink"));
 
 void FLayoutLinkModule::StartupModule()
 {
-    // Called when the plugin loads
-    // Sets up UI, commands, and registers the tab
-    
-    FLayoutLinkStyle::Initialize();
-    FLayoutLinkStyle::ReloadTextures();
-    
-    FLayoutLinkCommands::Register();
-    
-    PluginCommands = MakeShareable(new FUICommandList);
-    
-    PluginCommands->MapAction(
-        FLayoutLinkCommands::Get().OpenPluginWindow,
-        FExecuteAction::CreateRaw(this, &FLayoutLinkModule::PluginButtonClicked),
-        FCanExecuteAction());
-    
 #if WITH_EDITOR
-    UToolMenus::RegisterStartupCallback(
-        FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FLayoutLinkModule::RegisterMenus));
-    
-    FGlobalTabmanager::Get()
-        ->RegisterNomadTabSpawner(LayoutLinkTabName,
-            FOnSpawnTab::CreateRaw(this, &FLayoutLinkModule::OnSpawnPluginTab))
-        .SetDisplayName(LOCTEXT("FLayoutLinkTabTitle", "LayoutLink"))
-        .SetMenuType(ETabSpawnerMenuType::Hidden);
+	UToolMenus::RegisterStartupCallback(
+		FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FLayoutLinkModule::RegisterMenus));
+
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(LayoutLinkTabName,
+		FOnSpawnTab::CreateRaw(this, &FLayoutLinkModule::OnSpawnPluginTab))
+		.SetDisplayName(LOCTEXT("TabTitle", "LayoutLink"))
+		.SetTooltipText(LOCTEXT("TooltipText", "USD Pipeline for Maya/Unreal"))
+		.SetMenuType(ETabSpawnerMenuType::Hidden);
+
+	// Load user settings (paths)
+	LoadSettings();
 #endif
 }
 
 void FLayoutLinkModule::ShutdownModule()
 {
-    // Called when the plugin unloads
-    // Cleanup all registered UI elements
-    
 #if WITH_EDITOR
-    UToolMenus::UnRegisterStartupCallback(this);
-    UToolMenus::UnregisterOwner(this);
-    FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(LayoutLinkTabName);
+	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(LayoutLinkTabName);
+	UToolMenus::UnRegisterStartupCallback(this);
+	UToolMenus::UnregisterOwner(this);
 #endif
-    
-    FLayoutLinkStyle::Shutdown();
-    FLayoutLinkCommands::Unregister();
 }
-
-// ============================================================================
-// UI CONSTRUCTION
-// ============================================================================
-
-#if WITH_EDITOR
-TSharedRef<SDockTab> FLayoutLinkModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
-{
-    return SNew(SDockTab)
-        .TabRole(ETabRole::NomadTab)
-        [
-            SNew(SVerticalBox)
-            
-            // ============================================================
-            // HEADER
-            // ============================================================
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(10.0f)
-            [
-                SNew(STextBlock)
-                .Text(FText::FromString("LayoutLink - Professional USD Pipeline"))
-                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 14))
-                .Justification(ETextJustify::Center)
-            ]
-            
-            // ============================================================
-            // EXPORT TO MAYA SECTION
-            // ============================================================
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(10.0f, 5.0f)
-            [
-                SNew(STextBlock)
-                .Text(FText::FromString("Export to Maya"))
-                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
-            ]
-            
-            // Export Mesh Library Button (Blue)
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(10.0f, 5.0f)
-            [
-                SNew(SButton)
-                .Text(FText::FromString("Export Mesh Library (Selected)"))
-                .ButtonColorAndOpacity(FLinearColor(0.13f, 0.59f, 0.95f))  // Blue
-                .OnClicked_Raw(this, &FLayoutLinkModule::OnExportMeshLibraryClicked)
-            ]
-            
-            // Export Layout Button (Green)
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(10.0f, 5.0f)
-            [
-                SNew(SButton)
-                .Text(FText::FromString("Export Layout (Selected)"))
-                .ButtonColorAndOpacity(FLinearColor(0.3f, 0.69f, 0.31f))  // Green
-                .OnClicked_Raw(this, &FLayoutLinkModule::OnExportButtonClicked)
-            ]
-            
-            // ============================================================
-            // IMPORT FROM MAYA SECTION
-            // ============================================================
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(10.0f, 15.0f, 10.0f, 5.0f)
-            [
-                SNew(STextBlock)
-                .Text(FText::FromString("Import from Maya"))
-                .Font(FCoreStyle::GetDefaultFontStyle("Bold", 12))
-            ]
-            
-            // Import Button (Orange)
-            + SVerticalBox::Slot()
-            .AutoHeight()
-            .Padding(10.0f, 5.0f)
-            [
-                SNew(SButton)
-                .Text(FText::FromString("Import Layout from Maya"))
-                .ButtonColorAndOpacity(FLinearColor(1.0f, 0.6f, 0.0f))  // Orange
-                .OnClicked_Raw(this, &FLayoutLinkModule::OnImportButtonClicked)
-            ]
-            
-            // ============================================================
-            // STATUS TEXT AREA
-            // ============================================================
-            + SVerticalBox::Slot()
-            .FillHeight(1.0f)
-            .Padding(10.0f)
-            [
-                SNew(SScrollBox)
-                + SScrollBox::Slot()
-                [
-                    SAssignNew(StatusTextWidget, STextBlock)
-                    .Text(FText::FromString(
-                        "LayoutLink Ready\n\n"
-                        "Asset Library: C:/SharedUSD/assets/unreal\n"
-                        "Layout Export: C:/SharedUSD/layouts/unreal_layouts\n\n"
-                        "Select actors and click export buttons."
-                    ))
-                    .AutoWrapText(true)
-                ]
-            ]
-        ];
-}
-#endif
-
-// ============================================================================
-// MENU REGISTRATION
-// ============================================================================
 
 void FLayoutLinkModule::PluginButtonClicked()
 {
-    // Called when user clicks the LayoutLink toolbar button
-    // Opens the LayoutLink tab
-    
 #if WITH_EDITOR
-    FGlobalTabmanager::Get()->TryInvokeTab(LayoutLinkTabName);
+	FGlobalTabmanager::Get()->TryInvokeTab(LayoutLinkTabName);
 #endif
 }
 
 #if WITH_EDITOR
 void FLayoutLinkModule::RegisterMenus()
 {
-    // Adds LayoutLink to Unreal's menus and toolbar
-    
-    FToolMenuOwnerScoped OwnerScoped(this);
-    
-    // Add to Window menu
-    {
-        UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Window");
-        FToolMenuSection& Section = Menu->FindOrAddSection("WindowLayout");
-        Section.AddMenuEntryWithCommandList(FLayoutLinkCommands::Get().OpenPluginWindow, PluginCommands);
-    }
-    
-    // Add to toolbar
-    {
-        UToolMenu* ToolbarMenu = UToolMenus::Get()->ExtendMenu("LevelEditor.LevelEditorToolBar.PlayToolBar");
-        FToolMenuSection& Section = ToolbarMenu->FindOrAddSection("PluginTools");
-        FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FLayoutLinkCommands::Get().OpenPluginWindow));
-        Entry.SetCommandList(PluginCommands);
-    }
+	FToolMenuOwnerScoped OwnerScoped(this);
+	UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Window");
+	{
+		FToolMenuSection& Section = Menu->FindOrAddSection("LayoutLink");
+		Section.AddMenuEntry(
+			"OpenLayoutLink",
+			LOCTEXT("OpenLayoutLink", "LayoutLink"),
+			LOCTEXT("OpenLayoutLink_Tooltip", "Open the LayoutLink panel"),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateRaw(this, &FLayoutLinkModule::PluginButtonClicked)));
+	}
 }
 #endif
 
-// ============================================================================
-// IMPORT FUNCTIONALITY (Maya → Unreal)
-// ============================================================================
+// ---------------------------
+// Settings Persistence
+// ---------------------------
+
+void FLayoutLinkModule::LoadSettings()
+{
+	// Sensible defaults if missing
+	FString DefaultAsset   = TEXT("C:/SharedUSD/assets/unreal");
+	FString DefaultLayouts = TEXT("C:/SharedUSD/layouts/unreal_layouts");
+
+	GConfig->GetString(TEXT("/Script/LayoutLink"), TEXT("AssetLibraryPath"), AssetLibraryPath, GEditorPerProjectIni);
+	GConfig->GetString(TEXT("/Script/LayoutLink"), TEXT("LayoutExportDir"),  LayoutExportDir,  GEditorPerProjectIni);
+
+	if (AssetLibraryPath.IsEmpty()) AssetLibraryPath = DefaultAsset;
+	if (LayoutExportDir.IsEmpty())  LayoutExportDir  = DefaultLayouts;
+}
+
+void FLayoutLinkModule::SaveSettings()
+{
+	GConfig->SetString(TEXT("/Script/LayoutLink"), TEXT("AssetLibraryPath"), *AssetLibraryPath, GEditorPerProjectIni);
+	GConfig->SetString(TEXT("/Script/LayoutLink"), TEXT("LayoutExportDir"),  *LayoutExportDir,  GEditorPerProjectIni);
+	GConfig->Flush(false, GEditorPerProjectIni);
+}
+
+// ---------------------------
+// UI: Tab
+// ---------------------------
+
+TSharedRef<SDockTab> FLayoutLinkModule::OnSpawnPluginTab(const FSpawnTabArgs& Args)
+{
+	const FSlateFontInfo Bold12  = FAppStyle::GetFontStyle("BoldFont");
+	const FSlateFontInfo BoldTitle = FCoreStyle::GetDefaultFontStyle("Bold", 16);
+
+	return SNew(SDockTab)
+		.TabRole(ETabRole::NomadTab)
+	[
+		SNew(SScrollBox)
+
+		// =====================
+		// TITLE
+		// =====================
+		+ SScrollBox::Slot()
+		.Padding(10.0f, 10.0f)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("Header", "LayoutLink"))
+			.Font(BoldTitle)
+			.Justification(ETextJustify::Center)
+		]
+
+		// =====================
+		// SETTINGS SECTION
+		// =====================
+		+ SScrollBox::Slot()
+		.Padding(10.f, 5.f, 10.f, 5.f)
+		[
+			SNew(SSeparator)
+		]
+
+		+ SScrollBox::Slot()
+		.Padding(10.f, 10.f, 10.f, 8.f)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("SettingsHeader", "Settings"))
+			.Font(Bold12)
+		]
+
+		// Asset Library row
+		+ SScrollBox::Slot()
+		.Padding(10.f, 3.f, 10.f, 3.f)
+		[
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(0.f, 0.f, 10.f, 0.f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SBox)
+				.MinDesiredWidth(100.f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("AssetLibrary", "Asset Library:"))
+				]
+			]
+
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SEditableTextBox)
+				.Text_Lambda([this]() { return FText::FromString(AssetLibraryPath); })
+				.OnTextCommitted_Lambda([this](const FText& NewText, ETextCommit::Type)
+				{
+					AssetLibraryPath = NewText.ToString();
+					SaveSettings();
+					if (StatusTextWidget.IsValid())
+					{
+						StatusTextWidget->SetText(FText::FromString(
+							FString::Printf(TEXT("Asset Library updated:\n%s"), *AssetLibraryPath)));
+					}
+				})
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(5.f, 0.f, 0.f, 0.f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("BrowseAsset", "Browse..."))
+				.OnClicked_Raw(this, &FLayoutLinkModule::OnBrowseAssetLibrary)
+			]
+		]
+
+		// Layout Export row
+		+ SScrollBox::Slot()
+		.Padding(10.f, 3.f, 10.f, 10.f)
+		[
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(0.f, 0.f, 10.f, 0.f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SBox)
+				.MinDesiredWidth(100.f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("LayoutExport", "Layout Export:"))
+				]
+			]
+
+			+ SHorizontalBox::Slot()
+			.FillWidth(1.0f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SEditableTextBox)
+				.Text_Lambda([this]() { return FText::FromString(LayoutExportDir); })
+				.OnTextCommitted_Lambda([this](const FText& NewText, ETextCommit::Type)
+				{
+					LayoutExportDir = NewText.ToString();
+					SaveSettings();
+					if (StatusTextWidget.IsValid())
+					{
+						StatusTextWidget->SetText(FText::FromString(
+							FString::Printf(TEXT("Layout Export updated:\n%s"), *LayoutExportDir)));
+					}
+				})
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(5.f, 0.f, 0.f, 0.f)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SButton)
+				.Text(LOCTEXT("BrowseLayout", "Browse..."))
+				.OnClicked_Raw(this, &FLayoutLinkModule::OnBrowseLayoutExport)
+			]
+		]
+
+		+ SScrollBox::Slot()
+		.Padding(10.f, 0.f, 10.f, 10.f)
+		[
+			SNew(SSeparator)
+		]
+
+		// =====================
+		// EXPORT TO MAYA
+		// =====================
+		+ SScrollBox::Slot()
+		.Padding(10.f, 10.f, 10.f, 8.f)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("ExportHeader", "Export to Maya"))
+			.Font(Bold12)
+		]
+
+		+ SScrollBox::Slot()
+		.Padding(10.f, 3.f, 10.f, 5.f)
+		[
+			SNew(SButton)
+			.Text(LOCTEXT("ExportMeshLib", "Export Mesh Library (Selected)"))
+			.ToolTipText(LOCTEXT("ExportMeshTip", "Export selected static meshes to USD asset library"))
+			.OnClicked_Raw(this, &FLayoutLinkModule::OnExportMeshLibraryClicked)
+			.ContentPadding(FMargin(10.f, 8.f))
+			.ButtonColorAndOpacity(FLinearColor(0.13f, 0.59f, 0.95f, 1.0f))  // Blue color
+		]
+
+		+ SScrollBox::Slot()
+		.Padding(10.f, 3.f, 10.f, 10.f)
+		[
+			SNew(SButton)
+			.Text(LOCTEXT("ExportLayout", "Export Layout (Selected)"))
+			.ToolTipText(LOCTEXT("ExportLayoutTip", "Export selected actors as USD layout with references"))
+			.OnClicked_Raw(this, &FLayoutLinkModule::OnExportButtonClicked)
+			.ContentPadding(FMargin(10.f, 8.f))
+			.ButtonColorAndOpacity(FLinearColor(0.3f, 0.69f, 0.31f, 1.0f))  // Green color
+		]
+
+		+ SScrollBox::Slot()
+		.Padding(10.f, 0.f, 10.f, 10.f)
+		[
+			SNew(SSeparator)
+		]
+
+		// =====================
+		// IMPORT FROM MAYA
+		// =====================
+		+ SScrollBox::Slot()
+		.Padding(10.f, 10.f, 10.f, 8.f)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("ImportHeader", "Import from Maya"))
+			.Font(Bold12)
+		]
+
+		+ SScrollBox::Slot()
+		.Padding(10.f, 3.f, 10.f, 10.f)
+		[
+			SNew(SButton)
+			.Text(LOCTEXT("ImportLayout", "Import Layout from Maya"))
+			.ToolTipText(LOCTEXT("ImportLayoutTip", "Import USD layout from Maya (creates USD Stage Actor)"))
+			.OnClicked_Raw(this, &FLayoutLinkModule::OnImportButtonClicked)
+			.ContentPadding(FMargin(10.f, 8.f))
+			.ButtonColorAndOpacity(FLinearColor(1.0f, 0.6f, 0.0f, 1.0f))  // Orange color
+		]
+
+		+ SScrollBox::Slot()
+		.Padding(10.f, 0.f, 10.f, 10.f)
+		[
+			SNew(SSeparator)
+		]
+
+		// =====================
+		// STATUS LOG
+		// =====================
+		+ SScrollBox::Slot()
+		.Padding(10.f, 10.f, 10.f, 5.f)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("StatusHeader", "Status Log"))
+			.Font(Bold12)
+		]
+
+		+ SScrollBox::Slot()
+		.Padding(10.f, 3.f, 10.f, 10.f)
+		[
+			SNew(SBorder)
+			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+			.Padding(5.f)
+			[
+				SAssignNew(StatusTextWidget, STextBlock)
+				.Text_Lambda([this]()
+				{
+					const FString Msg = FString::Printf(
+						TEXT("Ready\n\nAsset Library: %s\nLayout Export: %s\n\nSelect actors and use export buttons."),
+						*AssetLibraryPath, *LayoutExportDir);
+					return FText::FromString(Msg);
+				})
+				.AutoWrapText(true)
+			]
+		]
+	];
+}
+
+// ---------------------------
+// Browse handlers
+// ---------------------------
+
+FReply FLayoutLinkModule::OnBrowseAssetLibrary()
+{
+	IDesktopPlatform* Desktop = FDesktopPlatformModule::Get();
+	if (!Desktop) return FReply::Handled();
+
+	void* ParentWindowHandle = nullptr;
+	if (FModuleManager::Get().IsModuleLoaded("MainFrame"))
+	{
+		IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
+		TSharedPtr<SWindow> W = MainFrame.GetParentWindow();
+		if (W.IsValid() && W->GetNativeWindow().IsValid())
+		{
+			ParentWindowHandle = W->GetNativeWindow()->GetOSWindowHandle();
+		}
+	}
+
+	FString OutDir;
+	const bool bPicked = Desktop->OpenDirectoryDialog(
+		ParentWindowHandle,
+		TEXT("Choose Asset Library Folder"),
+		AssetLibraryPath,
+		OutDir);
+
+	if (bPicked)
+	{
+		AssetLibraryPath = OutDir;
+		SaveSettings();
+		if (StatusTextWidget.IsValid())
+		{
+			StatusTextWidget->SetText(FText::FromString(
+				FString::Printf(TEXT("Asset Library set to:\n%s"), *OutDir)));
+		}
+	}
+	return FReply::Handled();
+}
+
+FReply FLayoutLinkModule::OnBrowseLayoutExport()
+{
+	IDesktopPlatform* Desktop = FDesktopPlatformModule::Get();
+	if (!Desktop) return FReply::Handled();
+
+	void* ParentWindowHandle = nullptr;
+	if (FModuleManager::Get().IsModuleLoaded("MainFrame"))
+	{
+		IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
+		TSharedPtr<SWindow> W = MainFrame.GetParentWindow();
+		if (W.IsValid() && W->GetNativeWindow().IsValid())
+		{
+			ParentWindowHandle = W->GetNativeWindow()->GetOSWindowHandle();
+		}
+	}
+
+	FString OutDir;
+	const bool bPicked = Desktop->OpenDirectoryDialog(
+		ParentWindowHandle,
+		TEXT("Choose Layout Export Folder"),
+		LayoutExportDir,
+		OutDir);
+
+	if (bPicked)
+	{
+		LayoutExportDir = OutDir;
+		SaveSettings();
+		if (StatusTextWidget.IsValid())
+		{
+			StatusTextWidget->SetText(FText::FromString(
+				FString::Printf(TEXT("Layout Export set to:\n%s"), *OutDir)));
+		}
+	}
+	return FReply::Handled();
+}
+
+// ---------------------------
+// Export Buttons
+// ---------------------------
+
+FReply FLayoutLinkModule::OnExportMeshLibraryClicked()
+{
+	// Call Python: mesh_export.export_selected_meshes_library(asset_lib_dir)
+	const TSharedPtr<IPlugin> ThisPlugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
+	if (!ThisPlugin.IsValid())
+	{
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("PluginMissing", "LayoutLink plugin not found."));
+		return FReply::Handled();
+	}
+
+	const FString PyPath = ThisPlugin->GetContentDir() / TEXT("Python");
+	const FString Command = FString::Printf(
+		TEXT("import sys; sys.path.insert(0, r'%s'); ")
+		TEXT("import mesh_export as me; ")
+		TEXT("print('=== Mesh Export Starting ==='); ")
+		TEXT("print('Asset Library:', r'%s'); ")
+		TEXT("result = me.export_selected_meshes_library(r'%s'); ")
+		TEXT("print('Export result:', result)"),
+		*PyPath, *AssetLibraryPath, *AssetLibraryPath);
+
+	if (IPythonScriptPlugin::Get())
+	{
+		IPythonScriptPlugin::Get()->ExecPythonCommand(*Command);
+	}
+
+	if (StatusTextWidget.IsValid())
+	{
+		StatusTextWidget->SetText(FText::FromString(
+			FString::Printf(TEXT("Mesh Library Export requested.\nAsset Library: %s"), *AssetLibraryPath)));
+	}
+	return FReply::Handled();
+}
+
+FReply FLayoutLinkModule::OnExportButtonClicked()
+{
+	// Simple default filename
+	const FString DefaultName = TEXT("unreal_layout.usda");
+	const FString DefaultFullPath = FPaths::Combine(LayoutExportDir, DefaultName);
+
+	// Show Save As dialog
+	IDesktopPlatform* Desktop = FDesktopPlatformModule::Get();
+	FString Chosen;
+	if (Desktop)
+	{
+		void* Parent = nullptr;
+		if (FModuleManager::Get().IsModuleLoaded("MainFrame"))
+		{
+			IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
+			TSharedPtr<SWindow> W = MainFrame.GetParentWindow();
+			if (W.IsValid() && W->GetNativeWindow().IsValid())
+				Parent = W->GetNativeWindow()->GetOSWindowHandle();
+		}
+
+		TArray<FString> OutFiles;
+		const bool bOk = Desktop->SaveFileDialog(
+			Parent,
+			TEXT("Save USD Layout"),
+			LayoutExportDir,
+			DefaultName,
+			TEXT("USD ASCII (*.usda)|*.usda|USD Binary (*.usd)|*.usd|USD Crate (*.usdc)|*.usdc"),
+			EFileDialogFlags::None,
+			OutFiles);
+
+		Chosen = (bOk && OutFiles.Num() > 0) ? OutFiles[0] : DefaultFullPath;
+	}
+	else
+	{
+		Chosen = DefaultFullPath;
+	}
+
+	ExportUSDFile(Chosen);
+	return FReply::Handled();
+}
+
+// ---------------------------
+// Import Button
+// ---------------------------
 
 FReply FLayoutLinkModule::OnImportButtonClicked()
 {
-    // Called when user clicks "IMPORT USD FROM MAYA" button
-    // Opens file dialog to select USD file, then imports it
-    
-    UE_LOG(LogTemp, Warning, TEXT("=== Opening File Dialog ==="));
-    
-    // STEP 1: Get the file dialog system
-    IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-    if (!DesktopPlatform)
-    {
-        UE_LOG(LogTemp, Error, TEXT("Could not get desktop platform module"));
-        return FReply::Handled();
-    }
-    
-    // STEP 2: Get parent window for the dialog
-    void* ParentWindowHandle = nullptr;
-    IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
-    TSharedPtr<SWindow> MainWindow = MainFrame.GetParentWindow();
-    if (MainWindow.IsValid() && MainWindow->GetNativeWindow().IsValid())
-    {
-        ParentWindowHandle = MainWindow->GetNativeWindow()->GetOSWindowHandle();
-    }
-    
-    // STEP 3: Configure file dialog
-    TArray<FString> OutFiles;  // Will store selected file paths
-    const FString DialogTitle = TEXT("Import USD from Maya");
-    const FString DefaultPath = TEXT("C:/SharedUSD/maya_exports");  // Where Maya exports to
-    const FString DefaultFile = TEXT("");
-    const FString FileTypes = TEXT("USD Files (*.usd;*.usda;*.usdc)|*.usd;*.usda;*.usdc");
-    const uint32 Flags = 0;
-    
-    // STEP 4: Show the file browser
-    bool bFileSelected = DesktopPlatform->OpenFileDialog(
-        ParentWindowHandle,
-        DialogTitle,
-        DefaultPath,
-        DefaultFile,
-        FileTypes,
-        Flags,
-        OutFiles
-    );
-    
-    // STEP 5: Process user selection
-    if (bFileSelected && OutFiles.Num() > 0)
-    {
-        // User selected a file
-        FString SelectedFile = OutFiles[0];
-        UE_LOG(LogTemp, Warning, TEXT("User selected file: %s"), *SelectedFile);
-        
-        // Update status text to show we're importing
-        if (StatusTextWidget.IsValid())
-        {
-            FString StatusMessage = FString::Printf(
-                TEXT("Importing: %s\n\nPlease wait..."),
-                *FPaths::GetCleanFilename(SelectedFile)
-            );
-            StatusTextWidget->SetText(FText::FromString(StatusMessage));
-        }
-        
-        // Actually import the file
-        ImportUSDFile(SelectedFile);
-    }
-    else
-    {
-        // User cancelled
-        UE_LOG(LogTemp, Warning, TEXT("User cancelled file selection"));
-    }
-    
-    return FReply::Handled();
+	// Choose a USD file
+	IDesktopPlatform* Desktop = FDesktopPlatformModule::Get();
+	if (!Desktop) return FReply::Handled();
+
+	void* Parent = nullptr;
+	if (FModuleManager::Get().IsModuleLoaded("MainFrame"))
+	{
+		IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
+		TSharedPtr<SWindow> W = MainFrame.GetParentWindow();
+		if (W.IsValid() && W->GetNativeWindow().IsValid())
+			Parent = W->GetNativeWindow()->GetOSWindowHandle();
+	}
+
+	TArray<FString> Files;
+	const bool bOk = Desktop->OpenFileDialog(
+		Parent,
+		TEXT("Open USD Layout"),
+		LayoutExportDir,
+		TEXT(""),
+		TEXT("USD Files (*.usd;*.usda;*.usdc)|*.usd;*.usda;*.usdc"),
+		EFileDialogFlags::None,
+		Files);
+
+	if (bOk && Files.Num() > 0)
+	{
+		const FString Path = Files[0];
+		ImportUSDFile(Path);
+		
+		if (StatusTextWidget.IsValid())
+		{
+			StatusTextWidget->SetText(FText::FromString(
+				FString::Printf(TEXT("Import requested:\n%s\n\nCheck Output Log for details."), *Path)));
+		}
+	}
+	return FReply::Handled();
+}
+
+// ---------------------------
+// Export / Import helpers
+// ---------------------------
+
+void FLayoutLinkModule::ExportUSDFile(const FString& FilePath)
+{
+	const TSharedPtr<IPlugin> ThisPlugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
+	if (!ThisPlugin.IsValid())
+	{
+		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("PluginMissing2", "LayoutLink plugin not found."));
+		return;
+	}
+
+	const FString PyPath = ThisPlugin->GetContentDir() / TEXT("Python");
+
+	const FString Command = FString::Printf(
+		TEXT("import sys; sys.path.insert(0, r'%s'); ")
+		TEXT("import layout_export as le; ")
+		TEXT("print('=== Layout Export Starting ==='); ")
+		TEXT("print('Layout file:', r'%s'); ")
+		TEXT("print('Asset library:', r'%s'); ")
+		TEXT("res = le.export_selected_to_usd(r'%s', r'%s'); ")
+		TEXT("print('Export result:', res)"),
+		*PyPath, *FilePath, *AssetLibraryPath, *FilePath, *AssetLibraryPath);
+
+	if (IPythonScriptPlugin::Get())
+	{
+		IPythonScriptPlugin::Get()->ExecPythonCommand(*Command);
+	}
+
+	if (StatusTextWidget.IsValid())
+	{
+		StatusTextWidget->SetText(FText::FromString(
+			FString::Printf(TEXT("Export requested:\n%s\nAsset Library: %s\n\nCheck Output Log for details."),
+				*FilePath, *AssetLibraryPath)));
+	}
 }
 
 void FLayoutLinkModule::ImportUSDFile(const FString& FilePath)
 {
-    // Uses Python script to import USD from Maya
-    
-    UE_LOG(LogTemp, Warning, TEXT("=== Calling Python Import Script ==="));
-    UE_LOG(LogTemp, Warning, TEXT("File: %s"), *FilePath);
-    
-    // Get plugin directory
-    TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
-    if (!Plugin.IsValid())
-    {
-        UE_LOG(LogTemp, Error, TEXT("Could not find LayoutLink plugin"));
-        return;
-    }
-    
-    FString PythonScriptPath = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Content/Python"));
-    
-    // Build Python command
-    FString PythonScript = FString::Printf(
-        TEXT("import sys; "
-             "sys.path.append(r'%s'); "
-             "import layout_import; "
-             "result = layout_import.import_usd_from_maya(r'%s'); "
-             "print('Import result:', result)"),
-        *PythonScriptPath,
-        *FilePath
-    );
-    
-    // Execute Python
-    FPythonCommandEx PythonCommand;
-    PythonCommand.Command = PythonScript;
-    PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
-    
-    bool bSuccess = IPythonScriptPlugin::Get()->ExecPythonCommand(*PythonCommand.Command);
-    
-    if (bSuccess)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Python import completed"));
-        
-        if (StatusTextWidget.IsValid())
-        {
-            StatusTextWidget->SetText(FText::FromString(
-                TEXT("Import Successful!\n\nUSD Stage Actor created.\nCheck World Outliner for 'MayaLayoutImport'")
-            ));
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("Python import failed"));
-        
-        if (StatusTextWidget.IsValid())
-        {
-            StatusTextWidget->SetText(FText::FromString(
-                TEXT("ERROR: Python import failed!\n\nCheck Output Log for details.")
-            ));
-        }
-    }
+	// Import USD file from Maya - spawn USD Stage Actor
+	UE_LOG(LogTemp, Warning, TEXT("Importing USD layout from Maya: %s"), *FilePath);
+	
+	const TSharedPtr<IPlugin> ThisPlugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
+	if (!ThisPlugin.IsValid())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Could not find LayoutLink plugin"));
+		if (StatusTextWidget.IsValid())
+		{
+			StatusTextWidget->SetText(FText::FromString(TEXT("Error: LayoutLink plugin not found.")));
+		}
+		return;
+	}
+
+	const FString PyPath = ThisPlugin->GetContentDir() / TEXT("Python");
+	
+	// Call the layout_import.py script to actually spawn the USD Stage Actor
+	FString PythonCommand = FString::Printf(
+		TEXT("import sys; sys.path.insert(0, r'%s'); ")
+		TEXT("import layout_import; ")
+		TEXT("result = layout_import.import_usd_from_maya(r'%s'); ")
+		TEXT("print('Import result:', result)"),
+		*PyPath,
+		*FilePath
+	);
+	
+	// Execute Python script to spawn USD Stage Actor
+	if (IPythonScriptPlugin::Get())
+	{
+		IPythonScriptPlugin::Get()->ExecPythonCommand(*PythonCommand);
+	}
+	
+	// Update status
+	if (StatusTextWidget.IsValid())
+	{
+		StatusTextWidget->SetText(FText::FromString(
+			FString::Printf(TEXT("USD Stage Actor created!\n\nFile: %s\n\nCheck the Outliner for 'MayaLayoutImport'\nand Output Log for details."), *FilePath)));
+	}
 }
-
-// ============================================================================
-// EXPORT FUNCTIONALITY (Unreal → Maya)
-// ============================================================================
-
-FReply FLayoutLinkModule::OnExportButtonClicked()
-{
-    // Called when user clicks "EXPORT TO MAYA" button
-    // Exports selected Unreal actors to USD for Maya import
-    
-    UE_LOG(LogTemp, Warning, TEXT("=== Starting Export to Maya ==="));
-    
-    // STEP 1: Check if anything is selected
-    USelection* SelectedActors = GEditor->GetSelectedActors();
-    if (!SelectedActors || SelectedActors->Num() == 0)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("No actors selected"));
-        
-        if (StatusTextWidget.IsValid())
-        {
-            StatusTextWidget->SetText(FText::FromString(
-                TEXT("ERROR: No actors selected!\n\nPlease select actors in the level before exporting.")
-            ));
-        }
-        return FReply::Handled();
-    }
-    
-    UE_LOG(LogTemp, Warning, TEXT("Exporting %d selected actor(s)"), SelectedActors->Num());
-    
-    // STEP 2: Get file dialog system
-    IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
-    if (!DesktopPlatform)
-    {
-        UE_LOG(LogTemp, Error, TEXT("Could not get desktop platform module"));
-        return FReply::Handled();
-    }
-    
-    // STEP 3: Get parent window for dialog
-    void* ParentWindowHandle = nullptr;
-    IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
-    TSharedPtr<SWindow> MainWindow = MainFrame.GetParentWindow();
-    if (MainWindow.IsValid() && MainWindow->GetNativeWindow().IsValid())
-    {
-        ParentWindowHandle = MainWindow->GetNativeWindow()->GetOSWindowHandle();
-    }
-    
-    // STEP 4: Show SAVE dialog (not open dialog)
-    TArray<FString> OutFiles;
-    const FString DialogTitle = TEXT("Export USD to Maya");
-    const FString DefaultPath = TEXT("C:/SharedUSD/unreal_exports");  // Where Unreal exports TO
-    const FString DefaultFile = TEXT("unreal_layout.usda");  // Default filename
-    const FString FileTypes = TEXT("USD ASCII (*.usda)|*.usda");  // Only USDA for readability
-    const uint32 Flags = 0;
-    
-    bool bFileSelected = DesktopPlatform->SaveFileDialog(
-        ParentWindowHandle,
-        DialogTitle,
-        DefaultPath,
-        DefaultFile,
-        FileTypes,
-        Flags,
-        OutFiles
-    );
-    
-    // STEP 5: Process result
-    if (bFileSelected && OutFiles.Num() > 0)
-    {
-        FString SelectedFile = OutFiles[0];
-        UE_LOG(LogTemp, Warning, TEXT("Exporting to: %s"), *SelectedFile);
-        
-        // Update status
-        if (StatusTextWidget.IsValid())
-        {
-            FString StatusMessage = FString::Printf(
-                TEXT("Exporting %d actor(s) to:\n%s\n\nPlease wait..."),
-                SelectedActors->Num(),
-                *FPaths::GetCleanFilename(SelectedFile)
-            );
-            StatusTextWidget->SetText(FText::FromString(StatusMessage));
-        }
-        
-        // Actually export the file
-        ExportUSDFile(SelectedFile);
-    }
-    else
-    {
-        UE_LOG(LogTemp, Warning, TEXT("User cancelled export"));
-    }
-    
-    return FReply::Handled();
-}
-
-void FLayoutLinkModule::ExportUSDFile(const FString& FilePath)
-{
-    UE_LOG(LogTemp, Warning, TEXT("=== Calling Python Export Script ==="));
-    UE_LOG(LogTemp, Warning, TEXT("Target: %s"), *FilePath);
-    
-    // STEP 1: Get the plugin's directory dynamically
-    TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
-    if (!Plugin.IsValid())
-    {
-        UE_LOG(LogTemp, Error, TEXT("Could not find LayoutLink plugin"));
-        return;
-    }
-    
-    // Build path to Python script
-    FString PluginDir = Plugin->GetBaseDir();
-    FString PythonScriptPath = FPaths::Combine(PluginDir, TEXT("Content/Python"));
-    
-    UE_LOG(LogTemp, Warning, TEXT("Python script path: %s"), *PythonScriptPath);
-    
-    // STEP 2: Build Python command
-    FString AssetLibraryPath = TEXT("C:/SharedUSD/assets/unreal");
-    
-    FString PythonScript = FString::Printf(
-        TEXT("import sys; "
-             "sys.path.append(r'%s'); "
-             "import layout_export; "
-             "result = layout_export.export_selected_to_usd(r'%s', r'%s'); "
-             "print('Export result:', result)"),
-        *PythonScriptPath,
-        *FilePath,
-        *AssetLibraryPath
-    );
-    
-    // STEP 3: Execute Python
-    FPythonCommandEx PythonCommand;
-    PythonCommand.Command = PythonScript;
-    PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
-    
-    bool bSuccess = IPythonScriptPlugin::Get()->ExecPythonCommand(*PythonCommand.Command);
-    
-    if (bSuccess)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Python export completed"));
-        
-        if (StatusTextWidget.IsValid())
-        {
-            StatusTextWidget->SetText(FText::FromString(
-                TEXT("Export Successful!\n\nPython script created USD file.\nCheck Output Log for details.")
-            ));
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("Python export failed - check Output Log"));
-        
-        if (StatusTextWidget.IsValid())
-        {
-            StatusTextWidget->SetText(FText::FromString(
-                TEXT("ERROR: Python export failed!\n\nCheck Output Log for Python errors.")
-            ));
-        }
-    }
-}
-
-
-// MESH LIBRARY EXPORT
-FReply FLayoutLinkModule::OnExportMeshLibraryClicked()
-{
-    UE_LOG(LogTemp, Warning, TEXT("=== Starting Mesh Library Export ==="));
-    
-    // Check if anything is selected
-    USelection* SelectedActors = GEditor->GetSelectedActors();
-    if (!SelectedActors || SelectedActors->Num() == 0)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("No actors selected"));
-        
-        if (StatusTextWidget.IsValid())
-        {
-            StatusTextWidget->SetText(FText::FromString(
-                TEXT("ERROR: No actors selected!\n\nPlease select actors with static meshes before exporting.")
-            ));
-        }
-        return FReply::Handled();
-    }
-    
-    UE_LOG(LogTemp, Warning, TEXT("Exporting mesh library from %d actor(s)"), SelectedActors->Num());
-    
-    // Get plugin directory
-    TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
-    if (!Plugin.IsValid())
-    {
-        UE_LOG(LogTemp, Error, TEXT("Could not find LayoutLink plugin"));
-        return FReply::Handled();
-    }
-    
-    FString PythonScriptPath = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Content/Python"));
-    FString AssetLibraryPath = TEXT("C:/SharedUSD/assets/unreal");
-    
-    // Build Python command to export mesh library
-    FString PythonScript = FString::Printf(
-        TEXT("import sys; "
-             "sys.path.append(r'%s'); "
-             "import mesh_export; "
-             "result = mesh_export.export_selected_meshes_library(r'%s'); "
-             "print('Mesh export result:', result)"),
-        *PythonScriptPath,
-        *AssetLibraryPath
-    );
-    
-    // Execute Python
-    FPythonCommandEx PythonCommand;
-    PythonCommand.Command = PythonScript;
-    PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
-    
-    bool bSuccess = IPythonScriptPlugin::Get()->ExecPythonCommand(*PythonCommand.Command);
-    
-    if (bSuccess)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Mesh library export completed"));
-        
-        if (StatusTextWidget.IsValid())
-        {
-            StatusTextWidget->SetText(FText::FromString(
-                TEXT("Mesh Library Export Complete!\n\nCheck Output Log for details.")
-            ));
-        }
-    }
-    else
-    {
-        UE_LOG(LogTemp, Error, TEXT("Mesh library export failed"));
-        
-        if (StatusTextWidget.IsValid())
-        {
-            StatusTextWidget->SetText(FText::FromString(
-                TEXT("ERROR: Mesh export failed!\n\nCheck Output Log for details.")
-            ));
-        }
-    }
-    
-    return FReply::Handled();
-}
-
-// ============================================================================
-// METADATA READING
-// ============================================================================
 
 FString FLayoutLinkModule::ReadMetadataFromUSD(const FString& FilePath)
 {
-    // Uses Python to read metadata (more stable than C++)
-    
-    UE_LOG(LogTemp, Warning, TEXT("Reading metadata via Python: %s"), *FilePath);
-    
-    // Get plugin directory
-    TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
-    if (!Plugin.IsValid())
-    {
-        return TEXT("Could not find plugin");
-    }
-    
-    FString PythonScriptPath = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Content/Python"));
-    
-    // Build Python command to read and format metadata
-    FString PythonScript = FString::Printf(
-        TEXT("import sys; "
-             "sys.path.append(r'%s'); "
-             "from pxr import Sdf; "
-             "import metadata_utils; "
-             "layer = Sdf.Layer.FindOrOpen(r'%s'); "
-             "metadata = metadata_utils.read_layoutlink_metadata(layer) if layer else None; "
-             "result = metadata_utils.format_metadata_string(metadata); "
-             "print('METADATA_RESULT:', result)"),
-        *PythonScriptPath,
-        *FilePath
-    );
-    
-    // Execute and capture output
-    IPythonScriptPlugin::Get()->ExecPythonCommand(*PythonScript);
-    
-    // For now, return a simple message
-    // TODO: Capture Python print output for full metadata display
-    return TEXT("Metadata read via Python (check Output Log)");
+	// Uses Python to read metadata (more stable than C++)
+	UE_LOG(LogTemp, Warning, TEXT("Reading metadata via Python: %s"), *FilePath);
+	
+	// Get plugin directory
+	TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("LayoutLink"));
+	if (!Plugin.IsValid())
+	{
+		return TEXT("Could not find plugin");
+	}
+	
+	FString PythonScriptPath = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Content/Python"));
+	
+	// Build Python command to read and format metadata
+	FString PythonScript = FString::Printf(
+		TEXT("import sys\n")
+		TEXT("sys.path.append(r'%s')\n")
+		TEXT("from pxr import Sdf\n")
+		TEXT("import metadata_utils\n")
+		TEXT("layer = Sdf.Layer.FindOrOpen(r'%s')\n")
+		TEXT("metadata = metadata_utils.read_layoutlink_metadata(layer) if layer else None\n")
+		TEXT("result = metadata_utils.format_metadata_string(metadata)\n")
+		TEXT("print('METADATA_RESULT:', result)\n"),
+		*PythonScriptPath,
+		*FilePath
+	);
+	
+	// Execute and capture output
+	IPythonScriptPlugin::Get()->ExecPythonCommand(*PythonScript);
+	
+	// For now, return a simple message
+	return TEXT("Metadata read via Python (check Output Log)");
 }
 
-#undef LOCTEXT_NAMESPACE
-
 IMPLEMENT_MODULE(FLayoutLinkModule, LayoutLink)
+
+#undef LOCTEXT_NAMESPACE
