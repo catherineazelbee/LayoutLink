@@ -76,8 +76,10 @@ void FLayoutLinkModule::PluginButtonClicked()
 void FLayoutLinkModule::RegisterMenus()
 {
 	FToolMenuOwnerScoped OwnerScoped(this);
-	UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Window");
+	
+	// Add to Window menu
 	{
+		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Window");
 		FToolMenuSection& Section = Menu->FindOrAddSection("LayoutLink");
 		Section.AddMenuEntry(
 			"OpenLayoutLink",
@@ -85,6 +87,19 @@ void FLayoutLinkModule::RegisterMenus()
 			LOCTEXT("OpenLayoutLink_Tooltip", "Open the LayoutLink panel"),
 			FSlateIcon(),
 			FUIAction(FExecuteAction::CreateRaw(this, &FLayoutLinkModule::PluginButtonClicked)));
+	}
+	
+	// Add toolbar button
+	{
+		UToolMenu* ToolbarMenu = UToolMenus::Get()->ExtendMenu("LevelEditor.LevelEditorToolBar.PlayToolBar");
+		FToolMenuSection& Section = ToolbarMenu->FindOrAddSection("PluginTools");
+		Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+			"LayoutLink",
+			FUIAction(FExecuteAction::CreateRaw(this, &FLayoutLinkModule::PluginButtonClicked)),
+			LOCTEXT("LayoutLinkButton", "LayoutLink"),
+			LOCTEXT("LayoutLinkButtonTooltip", "Open LayoutLink USD Pipeline"),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Outliner")
+		));
 	}
 }
 #endif
