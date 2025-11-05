@@ -2,13 +2,13 @@
 
 **Bidirectional USD pipeline for layout artists working between Maya and Unreal Engine**
 
-LayoutLink enables seamless scene data exchange using industry-standard USD (Universal Scene Description) composition, following professional studio workflows where geometry is stored once in an asset library and referenced by multiple layout files.
+LayoutLink enables scene data exchange using industry-standard USD (Universal Scene Description) composition, following professional studio workflows where geometry is stored once in an asset library and referenced by multiple layout files.
 
 ---
 
 ## Current Features (v0.1.0)
 
-### ✅ **What Works Now**
+### ✅ **Version 1 Functionality**
 
 **Mesh Library Export:**
 - Export static meshes as individual USD assets (Maya & Unreal)
@@ -16,7 +16,7 @@ LayoutLink enables seamless scene data exchange using industry-standard USD (Uni
 - Z-up (Unreal) and Y-up (Maya) coordinate systems
 
 **Layout Export:**
-- Export scene layouts with USD references (no geometry duplication)
+- Export scene layouts with USD references (prevent geometry duplication)
 - Lightweight layout files reference mesh library assets
 - Metadata tracking (artist, timestamp, source application)
 - Camera export with full lens parameters (focal length, sensor size, clipping)
@@ -26,12 +26,6 @@ LayoutLink enables seamless scene data exchange using industry-standard USD (Uni
 - Automatic coordinate system conversion (Z-up ↔ Y-up)
 - Mesh references automatically resolved from asset library
 - Camera import with accurate lens data
-
-**Pipeline Features:**
-- Professional USD composition (references, not duplication)
-
-- Settings persistence across sessions
-- Metadata tracking for pipeline coordination
 
 ---
 
@@ -56,7 +50,6 @@ https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
    import maya_LayoutLink
    maya_LayoutLink.show_ui()
    ```
-3. UI will appear
 
 ### Unreal Engine
 1. Copy `LayoutLink` plugin folder to `Plugins/`
@@ -76,7 +69,7 @@ https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
 
 ### Basic Workflow
 
-**Export Mesh Library (One Time):**
+**Export Mesh Library (One Time Operation):**
 1. Maya/Unreal: Select mesh objects
 2. Click "📦 Export Mesh Library (Selected)"
 3. Individual `.usda` files created in asset library
@@ -98,8 +91,6 @@ https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
 3. mayaUsdProxyShape created with automatic Z-up → Y-up rotation
 
 ---
-
-## Technical Architecture
 
 ### File Structure
 
@@ -133,23 +124,6 @@ SharedUSD/
 - Camera definitions with lens parameters
 - Metadata (artist, timestamp, source app)
 
-### Coordinate System Handling
-
-**Challenge:** Maya is Y-up (right-handed), Unreal is Z-up (left-handed)
-
-**Solution:**
-- Mesh exports use native coordinate system
-- Layout imports apply -90° X rotation in Maya for Z-up content
-- USD Stage displays correctly in both applications
-- No data loss or baked transforms
-
-### Key Technologies
-
-- **Maya USD Plugin (mayaUsd)** - USD Stage support via mayaUsdProxyShape
-- **pxr Python API** - Direct USD authoring (bypasses broken Maya exporters)
-- **Unreal USD Stage Actor** - Native USD composition in Unreal
-- **Custom Metadata** - Pipeline tracking via USD layer customData
-
 ---
 
 ## Current Limitations
@@ -169,7 +143,7 @@ SharedUSD/
 - `maya_LayoutLink.py` - Main UI 
 - `maya_mesh_export.py` - Mesh library exporter
 - `maya_layout_export.py` - Layout exporter with references
-- `maya_layout_import.py` - Layout importer
+- `maya_layout_import.py` - Layout importer (spawns USD Stage, USD Proxy Shape, World transform parent)
 - `maya_metadata_utils.py` - Metadata reading/writing
 
 ### Unreal Plugin (C++)
@@ -188,9 +162,8 @@ SharedUSD/
 ## Development Timeline
 
 **Completed:**
-- ✅ Maya plugin with dockable UI (MayaQWidgetDockableMixin)
 - ✅ Unreal C++ plugin with Slate UI
-- ✅ Custom mesh exporter (fixes Maya's broken USD export)
+- ✅ Custom mesh exporter
 - ✅ Layout export with USD composition
 - ✅ Metadata system
 - ✅ Coordinate system conversion
@@ -212,12 +185,11 @@ SharedUSD/
 **Maya:**
 - Maya 2025
 - mayaUsd plugin installed
-- PySide6 (Maya 2024+)
-- USD Python bindings (pxr)
 
 **Unreal Engine:**
 - Unreal 5.6
-- USD Stage plugin enabled
+- USDImporter plugin enabled
+- USDCore plugin enabled
 - Python plugin enabled
 - Visual Studio 2022 (for compilation)
 
