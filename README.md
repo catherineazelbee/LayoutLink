@@ -39,11 +39,11 @@ LayoutLink enables seamless scene data exchange using industry-standard USD (Uni
 
 **Maya → Unreal Workflow:**
 
-https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
+https://github.com/user-attachments/assets/d9bb1434-174d-4b47-9ef8-37e12042c809
 
 **Unreal → Maya Workflow:**
 
-https://github.com/user-attachments/assets/d9bb1434-174d-4b47-9ef8-37e12042c809
+https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
 
 ---
 
@@ -158,24 +158,18 @@ SharedUSD/
 - ❌ Animation transfer (no time-varying data)
 - ❌ Round-trip updates (must delete and re-import)
 - ❌ Material transfer (USD materials require manual recreation)
-- ❌ Change tracking (full re-export required)
-- ❌ Conflict detection when both apps modify same layout
+- ❌ Lighting transfer
 - ❌ Dockable UI panels in both Maya and Unreal
-
-**Workarounds:**
-- Use versioned filenames (`shot_v001.usda`, `shot_v002.usda`)
-- Designate one app as "source of truth" per shot
-- Manual coordination between artists
 
 ---
 
 ## File Reference
 
 ### Maya Scripts
-- `maya_LayoutLink.py` - Main UI (dockable panel with PySide6)
-- `maya_mesh_export.py` - Mesh library exporter (custom pxr API)
+- `maya_LayoutLink.py` - Main UI 
+- `maya_mesh_export.py` - Mesh library exporter
 - `maya_layout_export.py` - Layout exporter with references
-- `maya_layout_import.py` - Layout importer (mayaUsdProxyShape)
+- `maya_layout_import.py` - Layout importer
 - `maya_metadata_utils.py` - Metadata reading/writing
 
 ### Unreal Plugin (C++)
@@ -188,11 +182,6 @@ SharedUSD/
 - `layout_export.py` - Layout exporter with references
 - `layout_import.py` - Layout importer (spawns USD Stage Actor)
 - `metadata_utils.py` - Metadata utilities
-
-### Future Files (Week 1-4)
-- `simple_layers.py` - BASE/OVER layer management (~200 lines)
-- `animation_exporter.py` - Stepped animation sampling (~300 lines)
-- `quick_updater.py` - Fast update system (~200 lines)
 
 ---
 
@@ -214,7 +203,7 @@ SharedUSD/
 
 **Planned:**
 - ⏳ Conflict detection
-- ⏳ Payload support (performance optimization)
+- ⏳ Payload support 
 
 ---
 
@@ -250,12 +239,6 @@ Built following professional USD workflows as documented by:
 
 ---
 
-## License
-
-[Your License Here]
-
----
-
 **Version:** 0.1.0  
 **Last Updated:** November 4, 2025  
-**Status:** Production Alpha (static layouts working, animation coming soon)
+**Status:** Production Alpha
