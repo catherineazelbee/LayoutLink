@@ -41,9 +41,12 @@ LayoutLink enables seamless scene data exchange using industry-standard USD (Uni
 
 [![Watch the video](unreal_to_maya_thumb.png)](https://vimeo.com/1133827271?share=copy)
 
+[![Watch the video]([unreal_to_maya_thumb.png)](https://vimeo.com/YOUR_VIDEO_ID](https://vimeo.com/1133827271?share=copy))
+
 **Unreal → Maya Workflow:**  
 
-[![Watch the video](maya_to_unreal_thumb.png)](https://vimeo.com/1133826576?fl=ip&fe=ec)
+[![Watch the video](maya_to_unreal_thumb.png)](https://vimeo.com/1133826576?share=copy)
+
 ---
 
 ## Installation
