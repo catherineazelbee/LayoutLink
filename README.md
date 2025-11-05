@@ -39,11 +39,11 @@ LayoutLink enables seamless scene data exchange using industry-standard USD (Uni
 
 **Maya → Unreal Workflow:**
 
-![maya_to_unreal_thumb.png](https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597)
+https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
 
 **Unreal → Maya Workflow:**
 
-![unreal_to_maya_thumb.png](https://github.com/user-attachments/assets/d9bb1434-174d-4b47-9ef8-37e12042c809)
+https://github.com/user-attachments/assets/d9bb1434-174d-4b47-9ef8-37e12042c809
 
 ---
 
