@@ -38,10 +38,10 @@ LayoutLink enables seamless scene data exchange using industry-standard USD (Uni
 ## Demo Videos
 
 **Maya → Unreal Workflow:**  
-[See Video](Media/maya_to_unreal_demo)
+[See Video](Media/maya_to_unreal_demo.mp4)
 
 **Unreal → Maya Workflow:**  
-[See Video](Media/unreal_to_maya_demo)
+[See Video](Media/unreal_to_maya_demo.mp4)
 
 ---
 
