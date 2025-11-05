@@ -37,23 +37,11 @@ LayoutLink enables seamless scene data exchange using industry-standard USD (Uni
 
 ## Demo Videos
 
-**Maya → Unreal Workflow:**
+**Maya → Unreal Workflow:**  
+[![Watch the video](https://vumbnail.com/1133826576.jpg)](https://vimeo.com/1133826576)
 
-<div style="padding:56.25% 0 0 0;position:relative;">
-  <iframe src="https://player.vimeo.com/video/1133826576?autoplay=1&loop=1&muted=1" 
-          style="position:absolute;top:0;left:0;width:100%;height:100%;" 
-          frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen>
-  </iframe>
-</div>
-
-**Unreal → Maya Workflow:**
-
-<div style="padding:56.25% 0 0 0;position:relative;">
-  <iframe src="https://player.vimeo.com/video/1133827271?autoplay=1&loop=1&muted=1" 
-          style="position:absolute;top:0;left:0;width:100%;height:100%;" 
-          frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen>
-  </iframe>
-</div>
+**Unreal → Maya Workflow:**  
+[![Watch the video](https://vumbnail.com/1133827271.jpg)](https://vimeo.com/1133827271)
 
 ---
 
