@@ -5,11 +5,13 @@ import os
 import unreal
 import metadata_utils
 
+
 def _sanitize(name: str) -> str:
     bad = '<>:"/\\|?*. '
     for ch in bad:
-        name = name.replace(ch, '_')
+        name = name.replace(ch, "_")
     return name
+
 
 def export_selected_to_usd(file_path: str, asset_library_dir: str):
     unreal.log("=== Layout Export Starting ===")
@@ -71,20 +73,24 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
         scl = xf.scale3d
 
         if cls_name in ("CineCameraActor", "CameraActor"):
-           # --- CAMERA (matrix-based, vector-accurate) ---
+            # --- CAMERA (matrix-based, vector-accurate) ---
             cam = UsdGeom.Camera.Define(stage, prim_path)
             cam_comp = actor.get_component_by_class(unreal.CameraComponent)
             if cam_comp:
                 try:
-                    focal_mm = float(cam_comp.get_editor_property("current_focal_length"))
-                    filmback  = cam_comp.get_editor_property("filmback")
+                    focal_mm = float(
+                        cam_comp.get_editor_property("current_focal_length")
+                    )
+                    filmback = cam_comp.get_editor_property("filmback")
                     sensor_w_mm = float(filmback.sensor_width)
                     sensor_h_mm = float(filmback.sensor_height)
                     cam.GetFocalLengthAttr().Set(focal_mm)
                     cam.GetHorizontalApertureAttr().Set(sensor_w_mm)
                     cam.GetVerticalApertureAttr().Set(sensor_h_mm)
                     cam.GetClippingRangeAttr().Set((0.1, 10000.0))  # meters
-                    unreal.log(f"  Camera mm: focal={focal_mm:.2f}, sensor={sensor_w_mm:.2f}x{sensor_h_mm:.2f}")
+                    unreal.log(
+                        f"  Camera mm: focal={focal_mm:.2f}, sensor={sensor_w_mm:.2f}x{sensor_h_mm:.2f}"
+                    )
                 except Exception as e:
                     unreal.log_warning(f"  Could not read camera props: {e}")
 
@@ -95,14 +101,16 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
             pos_ue = actor.get_actor_location()
             fwd_ue = actor.get_actor_forward_vector()  # +X
             right_ue = actor.get_actor_right_vector()  # +Y
-            up_ue = actor.get_actor_up_vector()        # +Z
+            up_ue = actor.get_actor_up_vector()  # +Z
 
             # Convert UE (LH) -> USD (RH) by flipping Y on all vectors
-            def V(v): return Gf.Vec3d(float(v.x), -float(v.y), float(v.z))
+            def V(v):
+                return Gf.Vec3d(float(v.x), -float(v.y), float(v.z))
+
             P_usd = V(pos_ue)
-            F_usd = V(fwd_ue)     # forward
-            R_usd = V(right_ue)   # right
-            U_usd = V(up_ue)      # up
+            F_usd = V(fwd_ue)  # forward
+            R_usd = V(right_ue)  # right
+            U_usd = V(up_ue)  # up
 
             # USD/Maya cameras look down -Z.
             # Construct world matrix with ROWS = [right; up; -forward; translation]
@@ -111,10 +119,10 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
             F = Gf.Vec3d(F_usd).GetNormalized()
 
             world_from_cam = Gf.Matrix4d(
-                ( R[0], R[1], R[2], 0.0 ),
-                ( U[0], U[1], U[2], 0.0 ),
-                ( -F[0], -F[1], -F[2], 0.0 ),
-                ( P_usd[0], P_usd[1], P_usd[2], 1.0 )
+                (R[0], R[1], R[2], 0.0),
+                (U[0], U[1], U[2], 0.0),
+                (-F[0], -F[1], -F[2], 0.0),
+                (P_usd[0], P_usd[1], P_usd[2], 1.0),
             )
 
             # Author a single transform op to avoid Euler-order pitfalls
@@ -124,16 +132,15 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
             op.Set(world_from_cam)
 
             cameras_exported += 1
-            exported_count   += 1
+            exported_count += 1
             continue
-
 
         # --- MESH ACTOR ---
         # Parent Xform holds TRS
         parent_xform = UsdGeom.Xform.Define(stage, prim_path).GetPrim()
 
         # Untyped child prim carries the reference so the Mesh type flows through
-        ref_prim_path = f"{prim_path}/Geo"   # /World/<Name>/Geo
+        ref_prim_path = f"{prim_path}/Geo"  # /World/<Name>/Geo
         ref_prim = stage.GetPrimAtPath(ref_prim_path)
         if not ref_prim:
             ref_prim = stage.OverridePrim(ref_prim_path)  # no type!
@@ -150,7 +157,7 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
                 mesh_file = f"{mesh_name}.usda"
                 mesh_full = os.path.join(asset_library_dir, mesh_file)
                 if lib_exists and os.path.exists(mesh_full):
-                    abs_mesh = os.path.abspath(mesh_full).replace('\\', '/')
+                    abs_mesh = os.path.abspath(mesh_full).replace("\\", "/")
                     refs = ref_prim.GetReferences()
                     refs.ClearReferences()
                     refs.AddReference(abs_mesh)
@@ -159,7 +166,9 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
                     unreal.log(f"  Mesh ref (ABS) → {abs_mesh}")
                 else:
                     if lib_exists:
-                        unreal.log_warning(f"  Mesh USD not found in library: {mesh_file}")
+                        unreal.log_warning(
+                            f"  Mesh USD not found in library: {mesh_file}"
+                        )
                     missing_meshes.append(mesh_name)
 
         if not mesh_usd_path:
@@ -167,10 +176,14 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
 
         # Optional debug metadata on the parent
         if static_mesh:
-            parent_xform.CreateAttribute("unreal:assetPath", Sdf.ValueTypeNames.String).Set(static_mesh.get_path_name())
-            parent_xform.CreateAttribute("unreal:meshName", Sdf.ValueTypeNames.String).Set(static_mesh.get_name())
+            parent_xform.CreateAttribute(
+                "unreal:assetPath", Sdf.ValueTypeNames.String
+            ).Set(static_mesh.get_path_name())
+            parent_xform.CreateAttribute(
+                "unreal:meshName", Sdf.ValueTypeNames.String
+            ).Set(static_mesh.get_name())
 
-       # TRS on the PARENT Xform with UE(LH) -> USD(RH) conversion
+        # TRS on the PARENT Xform with UE(LH) -> USD(RH) conversion
         from pxr import UsdGeom, Gf
 
         xf = actor.get_actor_transform()
@@ -178,9 +191,9 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
         rot = xf.rotation.rotator()
         scl = xf.scale3d
 
-        usd_loc = Gf.Vec3d(float(loc.x),  float(-loc.y),  float(loc.z))
+        usd_loc = Gf.Vec3d(float(loc.x), float(-loc.y), float(loc.z))
         usd_rot = (float(rot.roll), float(-rot.pitch), float(-rot.yaw))
-        usd_scl = Gf.Vec3f(float(scl.x),  float(scl.y),  float(scl.z))
+        usd_scl = Gf.Vec3f(float(scl.x), float(scl.y), float(scl.z))
 
         UsdGeom.Xformable(parent_xform).ClearXformOpOrder()
         xapi = UsdGeom.XformCommonAPI(parent_xform)
@@ -189,12 +202,15 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
         xapi.SetScale(usd_scl)
         xapi.SetPivot(Gf.Vec3f(0.0, 0.0, 0.0))
 
+        parent_xform.CreateAttribute(
+            "unreal:actorLabel", Sdf.ValueTypeNames.String
+        ).Set(label)
 
-        parent_xform.CreateAttribute("unreal:actorLabel", Sdf.ValueTypeNames.String).Set(label)
-
-        unreal.log(f"  TRS → T({loc.x:.2f},{loc.y:.2f},{loc.z:.2f})  "
-                   f"R({rot.roll:.2f},{rot.pitch:.2f},{rot.yaw:.2f})  "
-                   f"S({scl.x:.3f},{scl.y:.3f},{scl.z:.3f})")
+        unreal.log(
+            f"  TRS → T({loc.x:.2f},{loc.y:.2f},{loc.z:.2f})  "
+            f"R({rot.roll:.2f},{rot.pitch:.2f},{rot.yaw:.2f})  "
+            f"S({scl.x:.3f},{scl.y:.3f},{scl.z:.3f})"
+        )
 
         exported_count += 1
 
@@ -222,30 +238,83 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
     unreal.log(f"Saved: {abs_out}")
     unreal.log("=== Layout Export Complete ===")
 
-    return {
-        "success": True,
-        "actor_count": exported_count,
-        "actors_with_refs": actors_with_refs,
-        "actors_without_refs": actors_without_refs,
-        "cameras_exported": cameras_exported,
-        "missing_meshes": missing_meshes,
-        "file_path": abs_out,
-        "file_size": size,
-    }
-
-def _write_empty_stage(file_path: str):
-    """Write a valid but empty stage so you never get a blank file header."""
-    try:
-        from pxr import Usd, UsdGeom
-        abs_out = os.path.abspath(file_path)
-        os.makedirs(os.path.dirname(abs_out), exist_ok=True)
-        stage = Usd.Stage.CreateNew(abs_out)
-        UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
-        UsdGeom.SetStageMetersPerUnit(stage, 0.01)
-        world = UsdGeom.Xform.Define(stage, "/World")
-        stage.SetDefaultPrim(world.GetPrim())
-        stage.Save()
-        return {"success": False, "error": "No actors selected; wrote empty /World stage", "file_path": abs_out}
-    except Exception as e:
-        return {"success": False, "error": f"Could not write empty stage: {e}"}
-
+    # ========================================================================
+    # LAYER MANAGEMENT (NEW!)
+    # ========================================================================
+    
+    import simple_layers
+    
+    unreal.log("\n=== Layer Management ===")
+    
+    # Check if BASE layer already exists
+    base_path = abs_out.replace(".usda", "_BASE.usda")
+    
+    if os.path.exists(base_path):
+        # BASE exists - this is an UPDATE
+        unreal.log(f"Found existing BASE layer: {base_path}")
+        unreal.log("Creating Unreal OVERRIDE layer...")
+        
+        # Create override layer
+        over_path = simple_layers.create_override_layer(base_path, "unreal")
+        
+        # Remove empty override
+        if os.path.exists(over_path):
+            os.remove(over_path)
+        
+        # Rename our export to BE the override
+        os.rename(abs_out, over_path)
+        
+        # Re-open and add sublayer reference
+        over_stage = Usd.Stage.Open(over_path)
+        over_root = over_stage.GetRootLayer()
+        over_root.subLayerPaths.append(base_path)
+        
+        # Add override metadata
+        custom_data = dict(over_root.customLayerData or {})
+        custom_data["layoutlink_layer_type"] = "override"
+        custom_data["layoutlink_base_layer"] = base_path
+        custom_data["layoutlink_app"] = "unreal"
+        over_root.customLayerData = custom_data
+        over_stage.Save()
+        
+        unreal.log(f"✓ Updated OVERRIDE: {over_path}")
+        unreal.log(f"✓ BASE layer safe: {base_path}")
+        
+        return {
+            "success": True,
+            "layer_type": "override",
+            "file_path": over_path,
+            "base_path": base_path,
+            "actor_count": exported_count,
+            "actors_with_refs": actors_with_refs,
+            "actors_without_refs": actors_without_refs,
+            "cameras_exported": cameras_exported,
+            "missing_meshes": missing_meshes,
+            "file_size": size,
+        }
+    
+    else:
+        # No BASE exists - this is FIRST EXPORT
+        unreal.log("No BASE layer found")
+        unreal.log("Creating BASE layer (source of truth)...")
+        
+        # Create BASE from our export
+        base_path = simple_layers.create_base_layer(abs_out)
+        
+        # Remove temp export file
+        os.remove(abs_out)
+        
+        unreal.log(f"✓ Created BASE layer: {base_path}")
+        unreal.log("✓ This is your source of truth - it won't be modified again")
+        
+        return {
+            "success": True,
+            "layer_type": "base",
+            "file_path": base_path,
+            "actor_count": exported_count,
+            "actors_with_refs": actors_with_refs,
+            "actors_without_refs": actors_without_refs,
+            "cameras_exported": cameras_exported,
+            "missing_meshes": missing_meshes,
+            "file_size": size,
+        }

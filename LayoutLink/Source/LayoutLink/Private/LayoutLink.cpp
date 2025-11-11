@@ -532,7 +532,7 @@ FReply FLayoutLinkModule::OnExportButtonClicked()
 
 FReply FLayoutLinkModule::OnImportButtonClicked()
 {
-	// Choose a USD file
+	// Choose a USD file from MAYA layouts directory
 	IDesktopPlatform* Desktop = FDesktopPlatformModule::Get();
 	if (!Desktop) return FReply::Handled();
 
@@ -545,11 +545,14 @@ FReply FLayoutLinkModule::OnImportButtonClicked()
 			Parent = W->GetNativeWindow()->GetOSWindowHandle();
 	}
 
+	// FIXED: Open dialog in Maya layouts directory, not Unreal
+	FString MayaLayoutsDir = TEXT("C:/SharedUSD/layouts/maya_layouts");
+
 	TArray<FString> Files;
 	const bool bOk = Desktop->OpenFileDialog(
 		Parent,
-		TEXT("Open USD Layout"),
-		LayoutExportDir,
+		TEXT("Open USD Layout from Maya"),
+		MayaLayoutsDir,
 		TEXT(""),
 		TEXT("USD Files (*.usd;*.usda;*.usdc)|*.usd;*.usda;*.usdc"),
 		EFileDialogFlags::None,
