@@ -239,7 +239,7 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
     unreal.log("=== Layout Export Complete ===")
 
     # ========================================================================
-    # LAYER MANAGEMENT (NEW!)
+    # LAYER MANAGEMENT
     # ========================================================================
     
     import simple_layers
