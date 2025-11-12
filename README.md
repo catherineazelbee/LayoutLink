@@ -44,7 +44,7 @@ https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
 ## Installation
 
 ### Maya
-1. Copy all `maya_*.py` files to Maya scripts directory
+1. Copy all `maya_*.py` files to Maya scripts directory (in `Maya/` directory)
 2. Run in Maya Script Editor:
    ```python
    import maya_LayoutLink
@@ -53,8 +53,8 @@ https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
 
 ### Unreal Engine
 1. Copy `LayoutLink` plugin folder to `Plugins/`
-2. Regenerate project files (Right click .uproject file → Show more options → Generate Visual Studio Project Files)
-3. Double click .uproject and rebuild (Click yes on prompt `Would you like to rebuild them now?`)
+2. Regenerate project files (Right click `.uproject` file → `Show more options` → `Generate Visual Studio Project Files`)
+3. Double click .uproject and rebuild (Click **Yes** on prompt `Would you like to rebuild them now?`)
 4. Open LayoutLink from: **Window → LayoutLink** or toolbar button
 
 ---
@@ -210,6 +210,6 @@ Built following professional USD workflows as documented by:
 
 ---
 
-**Version:** 0.1.0  
-**Last Updated:** November 4, 2025  
+**Version:** 0.1.1
+**Last Updated:** November 12, 2025  
 **Status:** Production Alpha
