@@ -292,7 +292,7 @@ TSharedRef<SDockTab> FLayoutLinkModule::OnSpawnPluginTab(const FSpawnTabArgs& Ar
 			.ToolTipText(LOCTEXT("ExportMeshTip", "Export selected static meshes to USD asset library"))
 			.OnClicked_Raw(this, &FLayoutLinkModule::OnExportMeshLibraryClicked)
 			.ContentPadding(FMargin(10.f, 8.f))
-			.ButtonColorAndOpacity(FLinearColor(0.13f, 0.59f, 0.95f, 1.0f))  // Blue color
+			.ButtonColorAndOpacity(FLinearColor(0.13f, 0.59f, 0.95f, 1.0f))
 		]
 
 		+ SScrollBox::Slot()
@@ -303,7 +303,7 @@ TSharedRef<SDockTab> FLayoutLinkModule::OnSpawnPluginTab(const FSpawnTabArgs& Ar
 			.ToolTipText(LOCTEXT("ExportLayoutTip", "Export selected actors as USD layout with references"))
 			.OnClicked_Raw(this, &FLayoutLinkModule::OnExportButtonClicked)
 			.ContentPadding(FMargin(10.f, 8.f))
-			.ButtonColorAndOpacity(FLinearColor(0.3f, 0.69f, 0.31f, 1.0f))  // Green color
+			.ButtonColorAndOpacity(FLinearColor(0.3f, 0.69f, 0.31f, 1.0f))
 		]
 
 		+ SScrollBox::Slot()
@@ -331,7 +331,7 @@ TSharedRef<SDockTab> FLayoutLinkModule::OnSpawnPluginTab(const FSpawnTabArgs& Ar
 			.ToolTipText(LOCTEXT("ImportLayoutTip", "Import USD layout from Maya (creates USD Stage Actor)"))
 			.OnClicked_Raw(this, &FLayoutLinkModule::OnImportButtonClicked)
 			.ContentPadding(FMargin(10.f, 8.f))
-			.ButtonColorAndOpacity(FLinearColor(1.0f, 0.6f, 0.0f, 1.0f))  // Orange color
+			.ButtonColorAndOpacity(FLinearColor(1.0f, 0.6f, 0.0f, 1.0f))
 		]
 
 		+ SScrollBox::Slot()
@@ -545,7 +545,7 @@ FReply FLayoutLinkModule::OnImportButtonClicked()
 			Parent = W->GetNativeWindow()->GetOSWindowHandle();
 	}
 
-	// FIXED: Open dialog in Maya layouts directory, not Unreal
+	// Open dialog in Maya layouts directory, not Unreal
 	FString MayaLayoutsDir = TEXT("C:/SharedUSD/layouts/maya_layouts");
 
 	TArray<FString> Files;

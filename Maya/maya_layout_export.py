@@ -201,7 +201,7 @@ def export_selected_to_usd(file_path, asset_library_dir):
                 )
                 maya_obj_attr.Set(obj_short_name)
 
-        # SET TRANSFORM (works for both cameras and meshes)
+        # SET TRANSFORM (for both cameras and meshes)
         if prim_to_transform:
             translation = cmds.xform(obj, query=True, worldSpace=True, translation=True)
             rotation = cmds.xform(obj, query=True, worldSpace=True, rotation=True)
