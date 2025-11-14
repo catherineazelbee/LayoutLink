@@ -349,7 +349,7 @@ def export_selected_to_usd(file_path, asset_library_dir):
     if os.path.exists(base_path):
         # BASE exists - this is an UPDATE
         print(f"Found existing BASE layer: {base_path}")
-        print("Creating Unreal OVERRIDE layer...")
+        print("Creating Maya OVERRIDE layer...")
 
         # Create override layer (creates empty file with sublayer reference)
         over_path = simple_layers.create_override_layer(base_path, "unreal")

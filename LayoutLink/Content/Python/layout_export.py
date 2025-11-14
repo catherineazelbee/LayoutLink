@@ -1,5 +1,6 @@
 # layout_export.py
 # Cleaned: parent Xform + untyped /Geo reference for meshes, proper cameras, Fix A TRS.
+# WITH ANIMATION EXPORT
 
 import os
 import unreal
@@ -11,6 +12,7 @@ def _sanitize(name: str) -> str:
     for ch in bad:
         name = name.replace(ch, "_")
     return name
+
 
 def sample_actor_animation(actor, start_frame, end_frame):
     """
@@ -72,6 +74,7 @@ def has_varying_samples(samples):
     
     return False
 
+
 def export_selected_to_usd(file_path: str, asset_library_dir: str):
     unreal.log("=== Layout Export Starting ===")
     unreal.log(f"Layout file: {file_path}")
@@ -81,7 +84,7 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
     selected = editor_subsystem.get_selected_level_actors()
     if not selected:
         unreal.log_warning("No actors selected")
-        return _write_empty_stage(file_path)
+        return {"success": False, "error": "No actors selected"}
     
     # animation frame range
     # TODO: For now, use a default range 
@@ -122,6 +125,7 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
     actors_with_refs = 0
     actors_without_refs = 0
     cameras_exported = 0
+    animated_actors_count = 0  # Track animated actors
     missing_meshes = []
 
     lib_exists = os.path.isdir(asset_library_dir)
@@ -250,25 +254,55 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
                 "unreal:meshName", Sdf.ValueTypeNames.String
             ).Set(static_mesh.get_name())
 
-        # TRS on the PARENT Xform with UE(LH) -> USD(RH) conversion
-        from pxr import UsdGeom, Gf
+        # --- CHECK FOR ANIMATION ---
+        anim_samples = sample_actor_animation(actor, start_frame, end_frame)
+        
+        if has_varying_samples(anim_samples):
+            # ANIMATED - export timeSamples
+            unreal.log(f"  Actor is ANIMATED!")
+            
+            xformable = UsdGeom.Xformable(parent_xform)
+            xformable.ClearXformOpOrder()
+            
+            # Create transform ops
+            translate_op = xformable.AddTranslateOp()
+            rotate_op = xformable.AddRotateXYZOp()
+            scale_op = xformable.AddScaleOp()
+            
+            # Write timeSamples for each frame
+            for frame in sorted(anim_samples['translate'].keys()):
+                time_code = float(frame)
+                
+                # Get raw samples
+                t_raw = anim_samples['translate'][frame]
+                r_raw = anim_samples['rotate'][frame]
+                s_raw = anim_samples['scale'][frame]
+                
+                # Convert UE(LH) -> USD(RH)
+                usd_t = Gf.Vec3d(float(t_raw[0]), float(-t_raw[1]), float(t_raw[2]))
+                usd_r = (float(r_raw[0]), float(-r_raw[1]), float(-r_raw[2]))
+                usd_s = Gf.Vec3f(float(s_raw[0]), float(s_raw[1]), float(s_raw[2]))
+                
+                translate_op.Set(usd_t, time_code)
+                rotate_op.Set(usd_r, time_code)
+                scale_op.Set(usd_s, time_code)
+            
+            animated_actors_count += 1
+            
+        else:
+            # STATIC - single default value
+            usd_loc = Gf.Vec3d(float(loc.x), float(-loc.y), float(loc.z))
+            usd_rot = (float(rot.roll), float(-rot.pitch), float(-rot.yaw))
+            usd_scl = Gf.Vec3f(float(scl.x), float(scl.y), float(scl.z))
 
-        xf = actor.get_actor_transform()
-        loc = xf.translation
-        rot = xf.rotation.rotator()
-        scl = xf.scale3d
+            UsdGeom.Xformable(parent_xform).ClearXformOpOrder()
+            xapi = UsdGeom.XformCommonAPI(parent_xform)
+            xapi.SetTranslate(usd_loc)
+            xapi.SetRotate(Gf.Vec3f(*usd_rot), UsdGeom.XformCommonAPI.RotationOrderXYZ)
+            xapi.SetScale(usd_scl)
+            xapi.SetPivot(Gf.Vec3f(0.0, 0.0, 0.0))
 
-        usd_loc = Gf.Vec3d(float(loc.x), float(-loc.y), float(loc.z))
-        usd_rot = (float(rot.roll), float(-rot.pitch), float(-rot.yaw))
-        usd_scl = Gf.Vec3f(float(scl.x), float(scl.y), float(scl.z))
-
-        UsdGeom.Xformable(parent_xform).ClearXformOpOrder()
-        xapi = UsdGeom.XformCommonAPI(parent_xform)
-        xapi.SetTranslate(usd_loc)
-        xapi.SetRotate(Gf.Vec3f(*usd_rot), UsdGeom.XformCommonAPI.RotationOrderXYZ)
-        xapi.SetScale(usd_scl)
-        xapi.SetPivot(Gf.Vec3f(0.0, 0.0, 0.0))
-
+        # Add label metadata
         parent_xform.CreateAttribute(
             "unreal:actorLabel", Sdf.ValueTypeNames.String
         ).Set(label)
@@ -291,8 +325,9 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
     custom["layoutlink_asset_library"] = os.path.basename(asset_library_dir or "")
     
     # Animation metadata
-    custom["layoutlink_has_animation"] = False  # Will update if we detect animation
+    custom["layoutlink_has_animation"] = animated_actors_count > 0
     custom["layoutlink_animation_type"] = "stepped"
+    custom["layoutlink_animated_actors"] = animated_actors_count
     custom["layoutlink_start_frame"] = start_frame
     custom["layoutlink_end_frame"] = end_frame
     custom["layoutlink_fps"] = fps
@@ -305,6 +340,7 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
     unreal.log("=" * 60)
     unreal.log("Export Summary:")
     unreal.log(f"  Actors: {exported_count}")
+    unreal.log(f"  Animated actors: {animated_actors_count}")
     unreal.log(f"  With refs: {actors_with_refs}")
     unreal.log(f"  Without refs: {actors_without_refs}")
     unreal.log(f"  Cameras: {cameras_exported}")
@@ -361,6 +397,7 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
             "file_path": over_path,
             "base_path": base_path,
             "actor_count": exported_count,
+            "animated_actors": animated_actors_count,
             "actors_with_refs": actors_with_refs,
             "actors_without_refs": actors_without_refs,
             "cameras_exported": cameras_exported,
@@ -387,6 +424,7 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
             "layer_type": "base",
             "file_path": base_path,
             "actor_count": exported_count,
+            "animated_actors": animated_actors_count,
             "actors_with_refs": actors_with_refs,
             "actors_without_refs": actors_without_refs,
             "cameras_exported": cameras_exported,
