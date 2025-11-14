@@ -24,7 +24,7 @@ def import_usd_from_unreal(file_path, align_to_maya_up=True):
     print("=== Layout Import Starting ===")
     print(f"File: {file_path}")
 
-    # NEW: Detect if this is a layered file
+    # Detect if this is a layered file
     import simple_layers
 
     layer_type = simple_layers.get_layer_type(file_path)
@@ -60,16 +60,15 @@ def import_usd_from_unreal(file_path, align_to_maya_up=True):
         print(f"Stage upAxis: {up_axis}")
 
         base = os.path.splitext(os.path.basename(file_path))[0]
-        # Create a transform parent so we can rotate to match Maya's Y-up if desired
+        # Create a transform parent so we can rotate to match Maya's Y-up (vs. Unreal Z-Up)
         xform = cmds.createNode("transform", name=f"UnrealLayout_{base}")
         shape = cmds.createNode("mayaUsdProxyShape", parent=xform)
 
-        # Point the proxy to the file
-        #TODO: set primPath to /World
+        # Point the proxy to the composed root (World node)
         cmds.setAttr(f"{shape}.filePath", file_path, type="string")
         cmds.setAttr(f"{shape}.primPath", "/", type="string")  # Root - shows everything!
 
-        # Ensure all draw purposes are enabled (so nothing is hidden by purpose)
+        # Ensure all draw purposes are enabled (make nothing hidden)
         for attr in ("drawRenderPurpose", "drawProxyPurpose", "drawGuidePurpose"):
             if cmds.objExists(f"{shape}.{attr}"):
                 cmds.setAttr(f"{shape}.{attr}", 1)

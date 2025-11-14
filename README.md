@@ -44,7 +44,7 @@ https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
 ## Installation
 
 ### Maya
-1. Copy all `maya_*.py` files to Maya scripts directory
+1. Copy all `maya_*.py` files to Maya scripts directory (in `Maya/` directory)
 2. Run in Maya Script Editor:
    ```python
    import maya_LayoutLink
@@ -53,8 +53,8 @@ https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
 
 ### Unreal Engine
 1. Copy `LayoutLink` plugin folder to `Plugins/`
-2. Regenerate project files (Right click .uproject file → Show more options)
-3. Compile plugin
+2. Regenerate project files (Right click `.uproject` file → `Show more options` → `Generate Visual Studio Project Files`)
+3. Double click .uproject and rebuild (Click **Yes** on prompt `Would you like to rebuild them now?`)
 4. Open LayoutLink from: **Window → LayoutLink** or toolbar button
 
 ---
@@ -71,12 +71,12 @@ https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
 
 **Export Mesh Library (One Time Operation):**
 1. Maya/Unreal: Select mesh objects
-2. Click "📦 Export Mesh Library (Selected)"
+2. Click "Export Mesh Library (Selected)"
 3. Individual `.usda` files created in asset library
 
 **Export Layout from Maya:**
 1. Select objects to export (meshes, cameras)
-2. Click "📤 Export Layout (Selected)"
+2. Click "Export Layout (Selected)"
 3. Save as `my_shot.usda`
 4. Layout file references mesh library (no geometry duplication)
 
@@ -85,9 +85,9 @@ https://github.com/user-attachments/assets/ff80a0a3-8b9d-4a3c-b25a-d3b0528ba597
 2. Select the `.usda` file
 3. USD Stage Actor spawns in level with full scene
 
-**Round-Trip (Unreal → Maya):**
+**Import to Maya:**
 1. Unreal: Select objects, export layout
-2. Maya: Click "📥 Import Layout from Unreal"
+2. Maya: Click "Import Layout from Unreal"
 3. mayaUsdProxyShape created with automatic Z-up → Y-up rotation
 
 ---
@@ -104,10 +104,9 @@ SharedUSD/
 │       ├── SM_Chair.usda
 │       └── SM_Prop.usda
 └── layouts/
-    ├── maya_layouts/      # Maya scene exports
-    │   └── shot_010.usda
-    └── unreal_layouts/    # Unreal scene exports
-        └── shot_020.usda 
+    ├── shot01_BASE.usda # BASE (authoring layer)
+    ├── shot01_OVER.usda # OVERRIDE (override layer)
+    ├── shot02_BASE.usda
 ```
 
 ### USD Composition
@@ -132,7 +131,7 @@ SharedUSD/
 - ❌ Animation transfer (no time-varying data)
 - ❌ Round-trip updates (must delete and re-import)
 - ❌ Material transfer (USD materials require manual recreation)
-- ❌ Lighting transfer
+- ❌ Lighting transfer (extension feature)
 - ❌ Dockable UI panels in both Maya and Unreal
 
 ---
@@ -197,7 +196,7 @@ SharedUSD/
 
 ## Contributing
 
-This is a personal project for production pipeline development. Feel free to reference or adapt for your own pipeline needs.
+This is a senior thesis project for exploring USD and production pipeline development. Feel free to reference or adapt for your own pipeline needs.
 
 ---
 
@@ -211,6 +210,6 @@ Built following professional USD workflows as documented by:
 
 ---
 
-**Version:** 0.1.0  
-**Last Updated:** November 4, 2025  
+**Version:** 0.1.1
+**Last Updated:** November 12, 2025  
 **Status:** Production Alpha

@@ -12,7 +12,7 @@ def import_usd_from_maya(file_path):
     unreal.log("=== Python Import Starting ===")
     unreal.log(f"File: {file_path}")
 
-    # NEW: Detect layer type
+    # Detect layer type
     import simple_layers
 
     layer_type = simple_layers.get_layer_type(file_path)
