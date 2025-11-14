@@ -26,8 +26,16 @@ def import_usd_from_unreal(file_path, align_to_maya_up=True):
 
     # Detect if this is a layered file
     import simple_layers
+
     layer_type = simple_layers.get_layer_type(file_path)
     print(f"Layer type: {layer_type}")
+
+    if layer_type == "override":
+        base_path = simple_layers.get_base_from_override(file_path)
+        if base_path:
+            print(f"  References BASE: {base_path}")
+        else:
+            print("  WARNING: Could not find BASE layer!")
 
     if layer_type == "override":
         base_path = simple_layers.get_base_from_override(file_path)
@@ -58,7 +66,7 @@ def import_usd_from_unreal(file_path, align_to_maya_up=True):
 
         # Point the proxy to the composed root (World node)
         cmds.setAttr(f"{shape}.filePath", file_path, type="string")
-        cmds.setAttr(f"{shape}.primPath", "/World", type="string")
+        cmds.setAttr(f"{shape}.primPath", "/", type="string")  # Root - shows everything!
 
         # Ensure all draw purposes are enabled (make nothing hidden)
         for attr in ("drawRenderPurpose", "drawProxyPurpose", "drawGuidePurpose"):
@@ -76,6 +84,22 @@ def import_usd_from_unreal(file_path, align_to_maya_up=True):
 
         print(f"✓ Created USD Stage: {xform}")
         print(f"  Shape node: {shape}")
+
+        #  Handle animation
+        import animation_exporter
+
+        # Sync timeline from USD metadata
+        if animation_exporter.set_timeline_from_usd(file_path):
+            print("✓ Timeline synced from USD metadata")
+
+            # Enable time connection so animation plays
+            try:
+                cmds.connectAttr('time1.outTime', f'{shape}.time', force=True)
+                print("✓ Animation playback enabled (connected to timeline)")
+            except Exception as e:
+                print(f"  Warning: Could not connect time: {e}")
+
+
         print("=== Import Complete ===")
 
         return {
