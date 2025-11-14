@@ -5,7 +5,27 @@ Exports Maya layout with USD references to mesh library
 
 import maya.cmds as cmds
 import maya_metadata_utils
+import animation_exporter
 import os
+
+
+def get_maya_fps():
+    """Get Maya's FPS as a number"""
+    time_unit = cmds.currentUnit(query=True, time=True)
+
+    fps_map = {
+        "game": 15,
+        "film": 24,
+        "23.976fps": 23.976,
+        "pal": 25,
+        "ntsc": 30,
+        "29.97fps": 29.97,
+        "show": 48,
+        "palf": 50,
+        "ntscf": 60,
+    }
+
+    return fps_map.get(time_unit, 24.0)
 
 
 def sanitize_name(name):
@@ -61,6 +81,13 @@ def export_selected_to_usd(file_path, asset_library_dir):
 
     print(f"Exporting {len(selected)} object(s)")
 
+    # Get animation frame range from Maya timeline
+    start_frame = cmds.playbackOptions(query=True, minTime=True)
+    end_frame = cmds.playbackOptions(query=True, maxTime=True)
+    fps = get_maya_fps()
+
+    print(f"Timeline range: {start_frame} - {end_frame} @ {fps} fps")
+
     # STEP 2: Check if asset library exists (optional)
     asset_library_exists = os.path.exists(asset_library_dir)
     if not asset_library_exists:
@@ -91,7 +118,10 @@ def export_selected_to_usd(file_path, asset_library_dir):
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
     UsdGeom.SetStageMetersPerUnit(stage, 0.01)  # cm to meters
 
-    print("USD Stage created")
+    # NEW: Create /World root and set as default prim (matches Unreal structure)
+    world_xform = UsdGeom.Xform.Define(stage, "/World")
+    stage.SetDefaultPrim(world_xform.GetPrim())
+    print("USD Stage created with /World root")
 
     # STEP 5: Process each selected object
     exported_count = 0
@@ -99,11 +129,12 @@ def export_selected_to_usd(file_path, asset_library_dir):
     objects_without_refs = 0
     missing_meshes = []
     cameras_exported = 0
+    animated_objects = 0
 
     for obj in selected:
         obj_short_name = cmds.ls(obj, shortNames=True)[0]
         obj_name = sanitize_name(obj_short_name)
-        prim_path = f"/{obj_name}"
+        prim_path = f"/World/{obj_name}"
 
         print(f"Processing: {obj_short_name}")
 
@@ -201,35 +232,58 @@ def export_selected_to_usd(file_path, asset_library_dir):
                 )
                 maya_obj_attr.Set(obj_short_name)
 
-        # SET TRANSFORM (works for both cameras and meshes)
+        # SET TRANSFORM
         if prim_to_transform:
-            translation = cmds.xform(obj, query=True, worldSpace=True, translation=True)
-            rotation = cmds.xform(obj, query=True, worldSpace=True, rotation=True)
-            scale = cmds.xform(obj, query=True, worldSpace=True, scale=True)
 
-            xformable = UsdGeom.Xformable(prim_to_transform)
-            xformable.ClearXformOpOrder()
+            # Check if object has animation
+            if animation_exporter.is_animated(obj):
+                print(f"  Object is ANIMATED!")
 
-            # Add transform operations
-            translate_op = xformable.AddTranslateOp()
-            translate_op.Set((translation[0], translation[1], translation[2]))
+                # Export stepped animation (timeSamples)
+                anim_success = animation_exporter.export_stepped_animation(
+                    obj, prim_to_transform, start_frame, end_frame
+                )
 
-            # Maya rotation (XYZ order)
-            rotate_op = xformable.AddRotateXYZOp()
-            rotate_op.Set((rotation[0], rotation[1], rotation[2]))
+                if anim_success:
+                    animated_objects += 1
 
-            scale_op = xformable.AddScaleOp()
-            scale_op.Set((scale[0], scale[1], scale[2]))
+            else:
+                # Static object - export single transform (existing code)
+                translation = cmds.xform(
+                    obj, query=True, worldSpace=True, translation=True
+                )
+                rotation = cmds.xform(obj, query=True, worldSpace=True, rotation=True)
+                scale = cmds.xform(obj, query=True, worldSpace=True, scale=True)
 
-            # Add original name attribute - use GetPrim() for cameras
+                xformable = UsdGeom.Xformable(prim_to_transform)
+                xformable.ClearXformOpOrder()
+
+                # Add transform operations
+                translate_op = xformable.AddTranslateOp()
+                translate_op.Set((translation[0], translation[1], translation[2]))
+
+                # Maya rotation (XYZ order)
+                rotate_op = xformable.AddRotateXYZOp()
+                rotate_op.Set((rotation[0], rotation[1], rotation[2]))
+
+                scale_op = xformable.AddScaleOp()
+                scale_op.Set((scale[0], scale[1], scale[2]))
+
+            # Add original name attribute (for both animated and static)
             if is_camera:
                 maya_label_attr = prim_to_transform.GetPrim().CreateAttribute(
                     "maya:originalName", Sdf.ValueTypeNames.String
                 )
             else:
-                maya_label_attr = prim_to_transform.CreateAttribute(
-                    "maya:originalName", Sdf.ValueTypeNames.String
-                )
+                # Handle both typed schemas and raw prims
+                if hasattr(prim_to_transform, "GetPrim"):
+                    maya_label_attr = prim_to_transform.GetPrim().CreateAttribute(
+                        "maya:originalName", Sdf.ValueTypeNames.String
+                    )
+                else:
+                    maya_label_attr = prim_to_transform.CreateAttribute(
+                        "maya:originalName", Sdf.ValueTypeNames.String
+                    )
 
             maya_label_attr.Set(obj_short_name)
 
@@ -247,6 +301,15 @@ def export_selected_to_usd(file_path, asset_library_dir):
     custom_data["layoutlink_objects_without_refs"] = objects_without_refs
     custom_data["layoutlink_cameras_exported"] = cameras_exported
     custom_data["layoutlink_asset_library"] = os.path.basename(asset_library_dir)
+
+    # add Animation metadata
+    custom_data["layoutlink_has_animation"] = animated_objects > 0
+    custom_data["layoutlink_animation_type"] = "stepped"
+    custom_data["layoutlink_animated_objects"] = animated_objects
+    custom_data["layoutlink_start_frame"] = start_frame
+    custom_data["layoutlink_end_frame"] = end_frame
+    custom_data["layoutlink_fps"] = fps
+
     root_layer.customLayerData = custom_data
 
     # STEP 7: Save the stage
@@ -259,22 +322,7 @@ def export_selected_to_usd(file_path, asset_library_dir):
     print("=" * 60)
     print("Export Summary:")
     print(f"  Total objects: {exported_count}")
-    print(f"  Meshes with references: {objects_with_refs}")
-    print(f"  Meshes without references: {objects_without_refs}")
-    print(f"  Cameras: {cameras_exported}")
-    if missing_meshes:
-        print(f"  Missing mesh assets: {len(missing_meshes)}")
-        for mesh in missing_meshes:
-            print(f"    - {mesh}.usda")
-    print(f"  File size: {file_size} bytes")
-    print("=" * 60)
-    print(f"Saved: {abs_file_path}")
-    print("=== Layout Export Complete ===")
-
-    # Print summary
-    print("=" * 60)
-    print("Export Summary:")
-    print(f"  Total objects: {exported_count}")
+    print(f"  Animated objects: {animated_objects}")
     print(f"  Meshes with references: {objects_with_refs}")
     print(f"  Meshes without references: {objects_without_refs}")
     print(f"  Cameras: {cameras_exported}")
@@ -288,7 +336,7 @@ def export_selected_to_usd(file_path, asset_library_dir):
     print("=== Layout Export Complete ===")
 
     # ========================================================================
-    # LAYER MANAGEMENT 
+    # LAYER MANAGEMENT
     # ========================================================================
 
     import simple_layers
@@ -346,7 +394,8 @@ def export_selected_to_usd(file_path, asset_library_dir):
         }
 
     else:
-        # No BASE exists - this is FIRST EXPORT
+        # No BASE exists - this is FIRST EX\
+        # PORT
         print("No BASE layer found")
         print("Creating BASE layer...")
 

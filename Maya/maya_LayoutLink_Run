@@ -1,6 +1,6 @@
 import maya.cmds as cmds
 import sys
-
+S
 # Delete existing workspace control
 if cmds.workspaceControl("LayoutLinkWindowWorkspaceControl", exists=True):
     cmds.deleteUI("LayoutLinkWindowWorkspaceControl")
@@ -11,7 +11,7 @@ for mod in ['maya_LayoutLink', 'maya_mesh_export', 'maya_layout_export', 'maya_l
         del sys.modules[mod]
 
 # Add path and import
-sys.path.insert(0, "C:/Users/cathe/Documents/maya/2025/2025/scripts/LayoutLink/LayoutLink/Maya")
+sys.path.insert(0, "C:/Users/cathe/Documents/maya/2025/2025/scripts/LayoutLink/Maya")
 import maya_LayoutLink
 
 # Show UI

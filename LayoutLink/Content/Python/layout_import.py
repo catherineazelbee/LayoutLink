@@ -14,9 +14,10 @@ def import_usd_from_maya(file_path):
 
     # NEW: Detect layer type
     import simple_layers
+
     layer_type = simple_layers.get_layer_type(file_path)
     unreal.log(f"Layer type detected: {layer_type}")
-    
+
     if layer_type == "override":
         base_path = simple_layers.get_base_from_override(file_path)
         if base_path:
@@ -57,6 +58,38 @@ def import_usd_from_maya(file_path):
 
     stage_actor.set_editor_property("root_layer", {"file_path": abs_file_path})
     stage_actor.set_editor_property("time", 0.0)
+
+    stage_actor.set_editor_property("time", 0.0)
+
+    # Read animation metadata and set timeline
+    try:
+        from pxr import Sdf
+
+        layer = Sdf.Layer.FindOrOpen(abs_file_path)
+        if layer:
+            custom_data = layer.customLayerData or {}
+
+            start = custom_data.get("layoutlink_start_frame")
+            end = custom_data.get("layoutlink_end_frame")
+
+            if start is not None and end is not None:
+                # Use correct Unreal property names
+                stage_actor.set_editor_property(
+                    "initial_load_set", unreal.UsdInitialLoadSet.LOAD_ALL
+                )
+
+                # Set time range (use StartTimeCode and EndTimeCode, not start_time_code)
+                try:
+                    stage_actor.set_editor_property("StartTimeCode", float(start))
+                    stage_actor.set_editor_property("EndTimeCode", float(end))
+                    unreal.log(f"✓ Animation range set: {start}-{end}")
+                except:
+                    # If that doesn't work, try lowercase
+                    unreal.log(f"Note: Animation range in metadata: {start}-{end}")
+                    unreal.log("Add USD Stage Actor to Sequencer to see animation")
+
+    except Exception as e:
+        unreal.log(f"Note: Could not set animation range: {e}")
 
     # Try to read USD and check for cameras
     try:

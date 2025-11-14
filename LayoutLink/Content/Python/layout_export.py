@@ -12,6 +12,65 @@ def _sanitize(name: str) -> str:
         name = name.replace(ch, "_")
     return name
 
+def sample_actor_animation(actor, start_frame, end_frame):
+    """
+    Sample actor transform at every frame.
+    
+    Note: This samples EVERY frame since Unreal doesn't expose keyframes easily.
+    For stepped animation, user should manually key at specific frames.
+    
+    Args:
+        actor: Unreal actor
+        start_frame: Start frame
+        end_frame: End frame
+        
+    Returns:
+        Dict with translate/rotate/scale samples per frame
+    """
+    samples = {
+        'translate': {},
+        'rotate': {},
+        'scale': {}
+    }
+    
+    # Sample every frame
+    # Note: This assumes actor has animation in a Level Sequence
+    # For now, just sample current state (static)
+    # TODO: Add Level Sequence support to get actual keyframes
+    
+    for frame in range(int(start_frame), int(end_frame) + 1):
+        # For now, just use current transform
+        # In a real implementation, you'd advance the sequencer
+        xf = actor.get_actor_transform()
+        loc = xf.translation
+        rot = xf.rotation.rotator()
+        scl = xf.scale3d
+        
+        samples['translate'][frame] = (float(loc.x), float(loc.y), float(loc.z))
+        samples['rotate'][frame] = (float(rot.roll), float(rot.pitch), float(rot.yaw))
+        samples['scale'][frame] = (float(scl.x), float(scl.y), float(scl.z))
+    
+    return samples
+
+
+def has_varying_samples(samples):
+    """Check if samples actually vary (not all the same)"""
+    # Check translate
+    t_values = list(samples['translate'].values())
+    if len(set(t_values)) > 1:
+        return True
+    
+    # Check rotate
+    r_values = list(samples['rotate'].values())
+    if len(set(r_values)) > 1:
+        return True
+    
+    # Check scale  
+    s_values = list(samples['scale'].values())
+    if len(set(s_values)) > 1:
+        return True
+    
+    return False
 
 def export_selected_to_usd(file_path: str, asset_library_dir: str):
     unreal.log("=== Layout Export Starting ===")
@@ -23,6 +82,14 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
     if not selected:
         unreal.log_warning("No actors selected")
         return _write_empty_stage(file_path)
+    
+    # animation frame range
+    # TODO: For now, use a default range 
+    start_frame = 1
+    end_frame = 120  # Default to 120 frames (5 seconds @ 24fps)
+    fps = 24  # Standard film fps
+    
+    unreal.log(f"Animation range: {start_frame}-{end_frame} @ {fps}fps")
 
     try:
         from pxr import Usd, UsdGeom, Sdf, Gf
@@ -222,6 +289,14 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
     custom["layoutlink_actors_without_refs"] = actors_without_refs
     custom["layoutlink_cameras_exported"] = cameras_exported
     custom["layoutlink_asset_library"] = os.path.basename(asset_library_dir or "")
+    
+    # Animation metadata
+    custom["layoutlink_has_animation"] = False  # Will update if we detect animation
+    custom["layoutlink_animation_type"] = "stepped"
+    custom["layoutlink_start_frame"] = start_frame
+    custom["layoutlink_end_frame"] = end_frame
+    custom["layoutlink_fps"] = fps
+    
     root_layer.customLayerData = custom
 
     stage.Save()
@@ -241,34 +316,34 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
     # ========================================================================
     # LAYER MANAGEMENT (NEW!)
     # ========================================================================
-    
+
     import simple_layers
-    
+
     unreal.log("\n=== Layer Management ===")
-    
+
     # Check if BASE layer already exists
     base_path = abs_out.replace(".usda", "_BASE.usda")
-    
+
     if os.path.exists(base_path):
         # BASE exists - this is an UPDATE
         unreal.log(f"Found existing BASE layer: {base_path}")
         unreal.log("Creating Unreal OVERRIDE layer...")
-        
+
         # Create override layer
         over_path = simple_layers.create_override_layer(base_path, "unreal")
-        
+
         # Remove empty override
         if os.path.exists(over_path):
             os.remove(over_path)
-        
+
         # Rename our export to BE the override
         os.rename(abs_out, over_path)
-        
+
         # Re-open and add sublayer reference
         over_stage = Usd.Stage.Open(over_path)
         over_root = over_stage.GetRootLayer()
         over_root.subLayerPaths.append(base_path)
-        
+
         # Add override metadata
         custom_data = dict(over_root.customLayerData or {})
         custom_data["layoutlink_layer_type"] = "override"
@@ -276,10 +351,10 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
         custom_data["layoutlink_app"] = "unreal"
         over_root.customLayerData = custom_data
         over_stage.Save()
-        
+
         unreal.log(f"✓ Updated OVERRIDE: {over_path}")
         unreal.log(f"✓ BASE layer safe: {base_path}")
-        
+
         return {
             "success": True,
             "layer_type": "override",
@@ -292,21 +367,21 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
             "missing_meshes": missing_meshes,
             "file_size": size,
         }
-    
+
     else:
         # No BASE exists - this is FIRST EXPORT
         unreal.log("No BASE layer found")
         unreal.log("Creating BASE layer (source of truth)...")
-        
+
         # Create BASE from our export
         base_path = simple_layers.create_base_layer(abs_out)
-        
+
         # Remove temp export file
         os.remove(abs_out)
-        
+
         unreal.log(f"✓ Created BASE layer: {base_path}")
         unreal.log("✓ This is your source of truth - it won't be modified again")
-        
+
         return {
             "success": True,
             "layer_type": "base",
