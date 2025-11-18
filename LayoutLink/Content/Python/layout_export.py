@@ -1,10 +1,11 @@
 # layout_export.py
 # Cleaned: parent Xform + untyped /Geo reference for meshes, proper cameras, Fix A TRS.
-# WITH ANIMATION EXPORT
+# WITH REAL ANIMATION EXPORT from Level Sequences
 
 import os
 import unreal
 import metadata_utils
+import animation_sequence_reader  # NEW: Import our animation reader
 
 
 def _sanitize(name: str) -> str:
@@ -12,67 +13,6 @@ def _sanitize(name: str) -> str:
     for ch in bad:
         name = name.replace(ch, "_")
     return name
-
-
-def sample_actor_animation(actor, start_frame, end_frame):
-    """
-    Sample actor transform at every frame.
-    
-    Note: This samples EVERY frame since Unreal doesn't expose keyframes easily.
-    For stepped animation, user should manually key at specific frames.
-    
-    Args:
-        actor: Unreal actor
-        start_frame: Start frame
-        end_frame: End frame
-        
-    Returns:
-        Dict with translate/rotate/scale samples per frame
-    """
-    samples = {
-        'translate': {},
-        'rotate': {},
-        'scale': {}
-    }
-    
-    # Sample every frame
-    # Note: This assumes actor has animation in a Level Sequence
-    # For now, just sample current state (static)
-    # TODO: Add Level Sequence support to get actual keyframes
-    
-    for frame in range(int(start_frame), int(end_frame) + 1):
-        # For now, just use current transform
-        # In a real implementation, you'd advance the sequencer
-        xf = actor.get_actor_transform()
-        loc = xf.translation
-        rot = xf.rotation.rotator()
-        scl = xf.scale3d
-        
-        samples['translate'][frame] = (float(loc.x), float(loc.y), float(loc.z))
-        samples['rotate'][frame] = (float(rot.roll), float(rot.pitch), float(rot.yaw))
-        samples['scale'][frame] = (float(scl.x), float(scl.y), float(scl.z))
-    
-    return samples
-
-
-def has_varying_samples(samples):
-    """Check if samples actually vary (not all the same)"""
-    # Check translate
-    t_values = list(samples['translate'].values())
-    if len(set(t_values)) > 1:
-        return True
-    
-    # Check rotate
-    r_values = list(samples['rotate'].values())
-    if len(set(r_values)) > 1:
-        return True
-    
-    # Check scale  
-    s_values = list(samples['scale'].values())
-    if len(set(s_values)) > 1:
-        return True
-    
-    return False
 
 
 def export_selected_to_usd(file_path: str, asset_library_dir: str):
@@ -143,6 +83,18 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
         rot = xf.rotation.rotator()  # Roll=X, Pitch=Y, Yaw=Z (deg)
         scl = xf.scale3d
 
+        # ====================================================================
+        # CHECK FOR ANIMATION FIRST (before camera/mesh branching)
+        # ====================================================================
+        anim_samples = animation_sequence_reader.get_actor_animation_from_sequencer(
+            actor, start_frame, end_frame
+        )
+        is_animated = anim_samples and animation_sequence_reader.has_varying_samples(anim_samples)
+        
+        if is_animated:
+            unreal.log(f"  Actor is ANIMATED!")
+            animated_actors_count += 1
+
         if cls_name in ("CineCameraActor", "CameraActor"):
             # --- CAMERA (matrix-based, vector-accurate) ---
             cam = UsdGeom.Camera.Define(stage, prim_path)
@@ -196,11 +148,75 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
                 (P_usd[0], P_usd[1], P_usd[2], 1.0),
             )
 
-            # Author a single transform op to avoid Euler-order pitfalls
+            # Build camera world transform
             xformable = UsdGeom.Xformable(cam.GetPrim())
             xformable.ClearXformOpOrder()
-            op = xformable.AddTransformOp()
-            op.Set(world_from_cam)
+            
+            if is_animated:
+                # ANIMATED CAMERA - use matrix at each frame (preserves camera orientation)
+                unreal.log(f"  Exporting camera animation with matrix transforms...")
+                
+                transform_op = xformable.AddTransformOp()
+                
+                # Check if we have camera vector data (forward/right/up)
+                has_camera_vectors = 'forward' in anim_samples and anim_samples['forward']
+                
+                if has_camera_vectors:
+                    # Write timeSamples for each frame using proper camera matrices
+                    for frame in sorted(anim_samples['translate'].keys()):
+                        time_code = float(frame)
+                        
+                        # Get sampled vectors at this frame
+                        pos_raw = anim_samples['translate'][frame]
+                        fwd_raw = anim_samples['forward'][frame]
+                        right_raw = anim_samples['right'][frame]
+                        up_raw = anim_samples['up'][frame]
+                        
+                        # Convert UE (LH) -> USD (RH) by flipping Y
+                        def V(v):
+                            return Gf.Vec3d(float(v[0]), -float(v[1]), float(v[2]))
+                        
+                        P_usd = V(pos_raw)
+                        F_usd = V(fwd_raw)
+                        R_usd = V(right_raw)
+                        U_usd = V(up_raw)
+                        
+                        # Normalize vectors
+                        R = Gf.Vec3d(R_usd).GetNormalized()
+                        U = Gf.Vec3d(U_usd).GetNormalized()
+                        F = Gf.Vec3d(F_usd).GetNormalized()
+                        
+                        # Build camera matrix (USD cameras look down -Z)
+                        world_from_cam = Gf.Matrix4d(
+                            (R[0], R[1], R[2], 0.0),
+                            (U[0], U[1], U[2], 0.0),
+                            (-F[0], -F[1], -F[2], 0.0),
+                            (P_usd[0], P_usd[1], P_usd[2], 1.0),
+                        )
+                        
+                        transform_op.Set(world_from_cam, time_code)
+                else:
+                    unreal.log_warning("  Camera vectors not available - using simple TRS (may have orientation issues)")
+                    # Fallback: use simple TRS
+                    xformable.ClearXformOpOrder()
+                    translate_op = xformable.AddTranslateOp()
+                    rotate_op = xformable.AddRotateXYZOp()
+                    
+                    for frame in sorted(anim_samples['translate'].keys()):
+                        time_code = float(frame)
+                        t_raw = anim_samples['translate'][frame]
+                        r_raw = anim_samples['rotate'][frame]
+                        
+                        usd_t = Gf.Vec3d(float(t_raw[0]), float(-t_raw[1]), float(t_raw[2]))
+                        usd_r = (float(r_raw[0]), float(-r_raw[1]), float(-r_raw[2]))
+                        
+                        translate_op.Set(usd_t, time_code)
+                        rotate_op.Set(usd_r, time_code)
+                
+            else:
+                # STATIC CAMERA - use matrix (more accurate for static)
+                op = xformable.AddTransformOp()
+                op.Set(world_from_cam)
 
             cameras_exported += 1
             exported_count += 1
@@ -254,12 +270,13 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
                 "unreal:meshName", Sdf.ValueTypeNames.String
             ).Set(static_mesh.get_name())
 
-        # --- CHECK FOR ANIMATION ---
-        anim_samples = sample_actor_animation(actor, start_frame, end_frame)
+        # ====================================================================
+        # EXPORT TRANSFORM (uses animation data if available)
+        # ====================================================================
         
-        if has_varying_samples(anim_samples):
+        if is_animated:
             # ANIMATED - export timeSamples
-            unreal.log(f"  Actor is ANIMATED!")
+            unreal.log(f"  Exporting mesh animation...")
             
             xformable = UsdGeom.Xformable(parent_xform)
             xformable.ClearXformOpOrder()
@@ -286,8 +303,6 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
                 translate_op.Set(usd_t, time_code)
                 rotate_op.Set(usd_r, time_code)
                 scale_op.Set(usd_s, time_code)
-            
-            animated_actors_count += 1
             
         else:
             # STATIC - single default value
@@ -417,7 +432,7 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
         os.remove(abs_out)
 
         unreal.log(f"✓ Created BASE layer: {base_path}")
-        unreal.log("✓ This is your source of truth - it won't be modified again")
+        unreal.log(f"✓ This is your source of truth - it won't be modified again")
 
         return {
             "success": True,

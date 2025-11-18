@@ -1,6 +1,6 @@
 """
 LayoutLink USD Import (Python)
-Imports USD from Maya including meshes and cameras
+Imports USD from Maya including meshes and cameras WITH ANIMATION SUPPORT
 """
 
 import unreal
@@ -59,9 +59,14 @@ def import_usd_from_maya(file_path):
     stage_actor.set_editor_property("root_layer", {"file_path": abs_file_path})
     stage_actor.set_editor_property("time", 0.0)
 
-    stage_actor.set_editor_property("time", 0.0)
-
-    # Read animation metadata and set timeline
+    # ========================================================================
+    # Read animation metadata and setup Level Sequence
+    # ========================================================================
+    has_animation = False
+    start_frame = 1
+    end_frame = 120
+    fps = 24
+    
     try:
         from pxr import Sdf
 
@@ -69,29 +74,72 @@ def import_usd_from_maya(file_path):
         if layer:
             custom_data = layer.customLayerData or {}
 
-            start = custom_data.get("layoutlink_start_frame")
-            end = custom_data.get("layoutlink_end_frame")
+            # Read animation metadata from USD
+            has_animation = custom_data.get("layoutlink_has_animation", False)
+            start_frame = custom_data.get("layoutlink_start_frame", 1)
+            end_frame = custom_data.get("layoutlink_end_frame", 120)
+            fps = custom_data.get("layoutlink_fps", 24)
+            animated_count = custom_data.get("layoutlink_animated_objects", 0)
 
-            if start is not None and end is not None:
-                # Use correct Unreal property names
-                stage_actor.set_editor_property(
-                    "initial_load_set", unreal.UsdInitialLoadSet.LOAD_ALL
-                )
-
-                # Set time range (use StartTimeCode and EndTimeCode, not start_time_code)
-                try:
-                    stage_actor.set_editor_property("StartTimeCode", float(start))
-                    stage_actor.set_editor_property("EndTimeCode", float(end))
-                    unreal.log(f"✓ Animation range set: {start}-{end}")
-                except:
-                    # If that doesn't work, try lowercase
-                    unreal.log(f"Note: Animation range in metadata: {start}-{end}")
-                    unreal.log("Add USD Stage Actor to Sequencer to see animation")
+            unreal.log(f"Animation metadata:")
+            unreal.log(f"  Has animation: {has_animation}")
+            unreal.log(f"  Frame range: {start_frame}-{end_frame}")
+            unreal.log(f"  FPS: {fps}")
+            unreal.log(f"  Animated objects: {animated_count}")
+            
+            # Set the time range on the USD Stage Actor
+            stage_actor.set_editor_property("StartTimeCode", float(start_frame))
+            stage_actor.set_editor_property("EndTimeCode", float(end_frame))
+            unreal.log(f"✓ Set USD Stage time range: {start_frame}-{end_frame}")
 
     except Exception as e:
-        unreal.log(f"Note: Could not set animation range: {e}")
+        unreal.log(f"Note: Could not read animation metadata: {e}")
 
-    # Try to read USD and check for cameras
+    # ========================================================================
+    # Setup Level Sequence for animation playback
+    # ========================================================================
+    
+    if has_animation:
+        unreal.log("\n=== Setting up animation ===")
+        
+        # Get the Level Sequence that USD Stage Actor automatically creates
+        level_sequence = stage_actor.get_editor_property("level_sequence")
+        
+        if level_sequence:
+            unreal.log(f"✓ Found Level Sequence: {level_sequence.get_name()}")
+            
+            # Configure the sequence with the correct frame rate and range
+            frame_rate = unreal.FrameRate(numerator=int(fps), denominator=1)
+            level_sequence.set_display_rate(frame_rate)
+            level_sequence.set_tick_resolution(frame_rate)
+            
+            # Set playback range
+            level_sequence.set_playback_start(int(start_frame))
+            level_sequence.set_playback_end(int(end_frame))
+            
+            # Set view range (adds padding so you can see the full timeline)
+            level_sequence.set_view_range_start(float(start_frame - 10))
+            level_sequence.set_view_range_end(float(end_frame + 10))
+            
+            unreal.log(f"✓ Configured Level Sequence:")
+            unreal.log(f"  Frame rate: {fps} fps")
+            unreal.log(f"  Playback range: {start_frame}-{end_frame}")
+            
+            # Open the sequence in Sequencer so user can see it
+            unreal.LevelSequenceEditorBlueprintLibrary.open_level_sequence(level_sequence)
+            unreal.log(f"✓ Opened Level Sequence in Sequencer")
+            
+        else:
+            unreal.log("WARNING: Expected Level Sequence but none found!")
+            unreal.log("  Animation data is in USD but may not play automatically")
+    
+    else:
+        unreal.log("No animation detected - imported as static layout")
+
+    # ========================================================================
+    # Camera detection (existing code)
+    # ========================================================================
+    
     try:
         from pxr import Usd, UsdGeom
 
@@ -110,5 +158,23 @@ def import_usd_from_maya(file_path):
     except:
         pass  # Camera detection is optional
 
+    # ========================================================================
+    # Summary
+    # ========================================================================
+    
+    unreal.log("=" * 60)
+    unreal.log("Import Summary:")
+    unreal.log(f"  USD Stage Actor: MayaLayoutImport")
+    if has_animation:
+        unreal.log(f"  Animation: {start_frame}-{end_frame} @ {fps}fps")
+        unreal.log(f"  → Press PLAY in Sequencer to see animation")
+    else:
+        unreal.log(f"  Static layout (no animation)")
+    unreal.log("=" * 60)
     unreal.log("=== Import Complete ===")
-    return {"success": True}
+    
+    return {
+        "success": True,
+        "has_animation": has_animation,
+        "level_sequence": level_sequence if has_animation else None
+    }
