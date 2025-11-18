@@ -75,12 +75,19 @@ def sample_actor_animation_from_sequence(actor, level_sequence, start_frame, end
         
     Returns:
         Dict with translate/rotate/scale samples per frame
+        For cameras, also includes forward/right/up vectors
     """
     samples = {
         'translate': {},
         'rotate': {},
-        'scale': {}
+        'scale': {},
+        'forward': {},   # For cameras
+        'right': {},     # For cameras
+        'up': {}         # For cameras
     }
+    
+    # Check if this is a camera
+    is_camera = actor.get_class().get_name() in ("CineCameraActor", "CameraActor")
     
     if not level_sequence:
         unreal.log_warning("No Level Sequence provided")
@@ -131,6 +138,20 @@ def sample_actor_animation_from_sequence(actor, level_sequence, start_frame, end
             samples['translate'][frame] = (float(loc.x), float(loc.y), float(loc.z))
             samples['rotate'][frame] = (float(rot.roll), float(rot.pitch), float(rot.yaw))
             samples['scale'][frame] = (float(scl.x), float(scl.y), float(scl.z))
+            
+            # For cameras, capture forward/right/up vectors DIRECTLY from actor
+            # (not from transform - use the actor methods)
+            if is_camera:
+                fwd = actor.get_actor_forward_vector()
+                right = actor.get_actor_right_vector()
+                up = actor.get_actor_up_vector()
+                
+                # Store as raw Unreal coordinates (we'll convert later)
+                samples['forward'][frame] = (float(fwd.x), float(fwd.y), float(fwd.z))
+                samples['right'][frame] = (float(right.x), float(right.y), float(right.z))
+                samples['up'][frame] = (float(up.x), float(up.y), float(up.z))
+                
+                unreal.log(f"    Frame {frame}: pos=({loc.x:.2f},{loc.y:.2f},{loc.z:.2f}) fwd=({fwd.x:.2f},{fwd.y:.2f},{fwd.z:.2f})")
         
         unreal.log(f"  ✓ Sampled {len(samples['translate'])} frames")
         
