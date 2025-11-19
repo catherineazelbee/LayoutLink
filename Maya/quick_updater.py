@@ -166,7 +166,7 @@ def update_existing_stage(stage_transform, new_usd_path=None):
             print("  Make sure Unreal has exported with the same shot name!")
             return {"success": False, "error": error}
         
-        print(f"âœ" Found: {os.path.basename(new_usd_path)}")
+        print(f"Found: {os.path.basename(new_usd_path)}")
     
     # Verify new file exists
     if not os.path.exists(new_usd_path):
@@ -179,7 +179,7 @@ def update_existing_stage(stage_transform, new_usd_path=None):
     # THE MAGIC: Just change the file path - Maya reloads automatically!
     try:
         cmds.setAttr(f'{shape_node}.filePath', new_usd_path, type='string')
-        print("âœ" File path updated")
+        print("File path updated")
     except Exception as e:
         error = f"Could not update file path: {e}"
         print(f"ERROR: {error}")
@@ -189,7 +189,7 @@ def update_existing_stage(stage_transform, new_usd_path=None):
     cmds.refresh()
     
     print("=" * 60)
-    print("âœ" UPDATE COMPLETE!")
+    print("UPDATE COMPLETE!")
     print("  Stage reloaded with Unreal changes")
     print("  Animation preserved (if any)")
     print(f"  Time: <10 seconds")
@@ -281,7 +281,7 @@ def switch_to_base_layer(stage_transform):
     cmds.setAttr(f'{info["shape"]}.filePath', base_path, type='string')
     cmds.refresh()
     
-    print("âœ" Switched to BASE layer")
+    print("Switched to BASE layer")
     
     return {
         "success": True,

@@ -21,6 +21,7 @@ if current_dir not in sys.path:
 import maya_mesh_export
 import maya_layout_export
 import maya_layout_import
+import quick_updater 
 
 from PySide6 import QtWidgets, QtCore
 from shiboken6 import wrapInstance
@@ -223,6 +224,25 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
         import_group.setLayout(import_layout)
         main_layout.addWidget(import_group)
+        
+        # Quick Update Button
+        self.update_btn = QtWidgets.QPushButton("🔄 Update from Unreal")
+        self.update_btn.setStyleSheet(
+            """
+            QPushButton {
+                background-color: #9C27B0;
+                color: white;
+                font-size: 13px;
+                font-weight: bold;
+                padding: 12px;
+                border-radius: 5px;
+            }
+            QPushButton:hover { background-color: #7B1FA2; }
+            QPushButton:pressed { background-color: #4A148C; }
+        """
+        )
+        self.update_btn.clicked.connect(self.on_update_from_unreal)
+        import_layout.addWidget(self.update_btn)
 
         # ============================================================
         # STATUS LOG
@@ -412,6 +432,9 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
             self.log(traceback.format_exc())
 
+    #TODO: Implement update from Unreal
+    def on_update_from_unreal(self):
+        return
     # ========================================================================
     # HELPER FUNCTIONS
     # ========================================================================
