@@ -57,7 +57,9 @@ def get_relative_path(from_file, to_file):
         return to_path.replace("\\", "/")
 
 
-def export_selected_to_usd(file_path, asset_library_dir):
+def export_selected_to_usd(
+    file_path, asset_library_dir, start_frame=None, end_frame=None
+):
     """
     Export selected Maya objects to USD layout file with references to mesh library.
 
@@ -81,9 +83,18 @@ def export_selected_to_usd(file_path, asset_library_dir):
 
     print(f"Exporting {len(selected)} object(s)")
 
-    # Get animation frame range from Maya timeline
-    start_frame = cmds.playbackOptions(query=True, minTime=True)
-    end_frame = cmds.playbackOptions(query=True, maxTime=True)
+# Get frame range from parameters or Maya timeline
+    if start_frame is None:
+        start_frame = cmds.playbackOptions(query=True, minTime=True)
+    if end_frame is None:
+        end_frame = cmds.playbackOptions(query=True, maxTime=True)
+    
+    # Validate frame range
+    if start_frame >= end_frame:
+        error_msg = f"Invalid frame range: start ({start_frame}) must be less than end ({end_frame})"
+        print(f"ERROR: {error_msg}")
+        return {"success": False, "error": error_msg}
+    
     fps = get_maya_fps()
 
     print(f"Timeline range: {start_frame} - {end_frame} @ {fps} fps")

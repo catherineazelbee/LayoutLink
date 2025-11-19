@@ -31,8 +31,10 @@ from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 # CONFIGURATION
 # ============================================================================
 
+
 class Config:
     """LayoutLink configuration"""
+
     VERSION = "0.1.0"
     ASSET_LIBRARY_VAR = "layoutlink_asset_library"
     LAYOUT_EXPORT_VAR = "layoutlink_layout_export"
@@ -57,20 +59,22 @@ class Config:
     def set_layout_export(cls, path):
         cmds.optionVar(sv=(cls.LAYOUT_EXPORT_VAR, path))
 
+
 # ============================================================================
 # UI - Using MayaQWidgetDockableMixin for proper docking
 # ============================================================================
 
+
 class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
     WINDOW_TITLE = "LayoutLink"
     WINDOW_OBJECT = "LayoutLinkWindow"
-    
+
     def __init__(self, parent=None):
         super(LayoutLinkUI, self).__init__(parent=parent)
-        
+
         self.setObjectName(self.WINDOW_OBJECT)
         self.setWindowTitle(self.WINDOW_TITLE)
-        
+
         self.setup_ui()
 
     def setup_ui(self):
@@ -115,10 +119,46 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         # ============================================================
         export_group = QtWidgets.QGroupBox("Export to Unreal")
         export_layout = QtWidgets.QVBoxLayout()
+        
+                # Frame Range Controls
+        frame_range_label = QtWidgets.QLabel("Animation Frame Range:")
+        frame_range_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        export_layout.addWidget(frame_range_label)
+
+        frame_controls = QtWidgets.QHBoxLayout()
+
+        # Start frame spinbox
+        start_label = QtWidgets.QLabel("Start:")
+        frame_controls.addWidget(start_label)
+
+        self.start_frame_spin = QtWidgets.QSpinBox()
+        self.start_frame_spin.setRange(-10000, 10000)
+        self.start_frame_spin.setMinimumWidth(80)
+        frame_controls.addWidget(self.start_frame_spin)
+
+        # End frame spinbox
+        end_label = QtWidgets.QLabel("End:")
+        frame_controls.addWidget(end_label)
+
+        self.end_frame_spin = QtWidgets.QSpinBox()
+        self.end_frame_spin.setRange(-10000, 10000)
+        self.end_frame_spin.setMinimumWidth(80)
+        frame_controls.addWidget(self.end_frame_spin)
+
+        # Sync from timeline button
+        sync_btn = QtWidgets.QPushButton("↻ Get from Timeline")
+        sync_btn.clicked.connect(self.sync_frame_range_from_timeline)
+        frame_controls.addWidget(sync_btn)
+
+        frame_controls.addStretch()
+        export_layout.addLayout(frame_controls)
 
         # Export Mesh Library Button
-        self.mesh_export_btn = QtWidgets.QPushButton("📦 Export Mesh Library (Selected)")
-        self.mesh_export_btn.setStyleSheet("""
+        self.mesh_export_btn = QtWidgets.QPushButton(
+            "📦 Export Mesh Library (Selected)"
+        )
+        self.mesh_export_btn.setStyleSheet(
+            """
             QPushButton {
                 background-color: #2196F3;
                 color: white;
@@ -129,13 +169,15 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             }
             QPushButton:hover { background-color: #1976D2; }
             QPushButton:pressed { background-color: #0D47A1; }
-        """)
+        """
+        )
         self.mesh_export_btn.clicked.connect(self.on_export_mesh_library)
         export_layout.addWidget(self.mesh_export_btn)
 
         # Export Layout Button
         self.layout_export_btn = QtWidgets.QPushButton("📤 Export Layout (Selected)")
-        self.layout_export_btn.setStyleSheet("""
+        self.layout_export_btn.setStyleSheet(
+            """
             QPushButton {
                 background-color: #4CAF50;
                 color: white;
@@ -146,7 +188,8 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             }
             QPushButton:hover { background-color: #45a049; }
             QPushButton:pressed { background-color: #3d8b40; }
-        """)
+        """
+        )
         self.layout_export_btn.clicked.connect(self.on_export_layout)
         export_layout.addWidget(self.layout_export_btn)
 
@@ -161,7 +204,8 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
         # Import Button
         self.import_btn = QtWidgets.QPushButton("📥 Import Layout from Unreal")
-        self.import_btn.setStyleSheet("""
+        self.import_btn.setStyleSheet(
+            """
             QPushButton {
                 background-color: #FF9800;
                 color: white;
@@ -172,10 +216,11 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             }
             QPushButton:hover { background-color: #F57C00; }
             QPushButton:pressed { background-color: #E65100; }
-        """)
+        """
+        )
         self.import_btn.clicked.connect(self.on_import_layout)
         import_layout.addWidget(self.import_btn)
-        
+
         import_group.setLayout(import_layout)
         main_layout.addWidget(import_group)
 
@@ -195,6 +240,9 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.log(f"Asset Library: {Config.get_asset_library()}")
         self.log(f"Layout Export: {Config.get_layout_export()}")
 
+        # Initialize from current timeline
+        self.sync_frame_range_from_timeline()
+
     # ========================================================================
     # BUTTON HANDLERS
     # ========================================================================
@@ -202,7 +250,7 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
     def on_export_mesh_library(self):
         """Export selected meshes to USD asset library"""
         self.log("\n=== Starting Mesh Library Export ===")
-        
+
         # Save settings
         Config.set_asset_library(self.asset_library_input.text())
         asset_lib = Config.get_asset_library()
@@ -211,46 +259,47 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         selection = cmds.ls(selection=True)
         if not selection:
             QtWidgets.QMessageBox.warning(
-                self, "No Selection",
-                "Please select one or more mesh objects before exporting."
+                self,
+                "No Selection",
+                "Please select one or more mesh objects before exporting.",
             )
             self.log("ERROR: No objects selected")
             return
 
         self.log(f"Exporting to: {asset_lib}")
-        
+
         try:
             # Call backend export
             result = maya_mesh_export.export_selected_meshes_library(asset_lib)
-            
+
             if result["success"]:
                 self.log(f"Success! Exported {result['exported_count']} mesh(es)")
-                if result['failed_count'] > 0:
+                if result["failed_count"] > 0:
                     self.log(f"Failed: {result['failed_count']} mesh(es)")
-                
+
                 QtWidgets.QMessageBox.information(
-                    self, "Export Complete",
-                    f"Exported {result['exported_count']} meshes to asset library."
+                    self,
+                    "Export Complete",
+                    f"Exported {result['exported_count']} meshes to asset library.",
                 )
             else:
                 self.log(f"Export failed: {result.get('error', 'Unknown error')}")
-                
+
         except Exception as e:
             self.log(f"ERROR: {e}")
             QtWidgets.QMessageBox.critical(
-                self, "Export Failed",
-                f"An error occurred:\n{e}"
+                self, "Export Failed", f"An error occurred:\n{e}"
             )
 
     def on_export_layout(self):
         """Export selected objects as layout with references"""
         try:
             self.log("\n=== Starting Layout Export ===")
-            
+
             # Save settings
             Config.set_asset_library(self.asset_library_input.text())
             Config.set_layout_export(self.layout_export_input.text())
-            
+
             asset_lib = Config.get_asset_library()
             layout_dir = Config.get_layout_export()
 
@@ -258,8 +307,9 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
             selection = cmds.ls(selection=True)
             if not selection:
                 QtWidgets.QMessageBox.warning(
-                    self, "No Selection",
-                    "Please select one or more objects before exporting."
+                    self,
+                    "No Selection",
+                    "Please select one or more objects before exporting.",
                 )
                 self.log("ERROR: No objects selected")
                 return
@@ -271,92 +321,97 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
             # Get filename - Use QTimer to defer dialog after Qt events
             self.log("Preparing file dialog...")
-            
+
             # Store context for deferred execution
-            self._export_context = {
-                'asset_lib': asset_lib,
-                'layout_dir': layout_dir
-            }
-            
+            self._export_context = {"asset_lib": asset_lib, "layout_dir": layout_dir}
+
             # Use QTimer.singleShot to delay dialog until after button click completes
             QtCore.QTimer.singleShot(0, self._show_export_dialog)
-            
+
         except Exception as e:
             self.log(f"ERROR in on_export_layout: {e}")
             import traceback
+
             self.log(traceback.format_exc())
 
     def _show_export_dialog(self):
         """Deferred function to show export dialog (called via QTimer)"""
         try:
-            asset_lib = self._export_context['asset_lib']
-            layout_dir = self._export_context['layout_dir']
-            
+            asset_lib = self._export_context["asset_lib"]
+            layout_dir = self._export_context["layout_dir"]
+
             self.log("Opening file dialog...")
-            
+
             file_path = cmds.fileDialog2(
                 fileFilter="USD Files (*.usda);;All Files (*.*)",
                 dialogStyle=2,
                 fileMode=0,
                 caption="Save Layout File",
                 startingDirectory=layout_dir,
-                okCaption="Save"
+                okCaption="Save",
             )
-            
+
             if not file_path:
                 self.log("Export cancelled - no file selected")
                 return
 
             self.log(f"Exporting to: {file_path[0]}")
             self.log(f"Using asset library: {asset_lib}")
-            
+
+            # Get frame range from UI
+            start_frame = self.start_frame_spin.value()
+            end_frame = self.end_frame_spin.value()
+
+            self.log(f"Exporting with frame range: {start_frame}-{end_frame}")
+
             result = maya_layout_export.export_selected_to_usd(
                 file_path[0],
-                asset_lib
+                asset_lib,
+                start_frame=start_frame,
+                end_frame=end_frame,
             )
-            
+
             if result["success"]:
                 self.log(f"Success! Exported {result['object_count']} object(s)")
                 self.log(f"  With references: {result['objects_with_refs']}")
-                if result.get('cameras_exported', 0) > 0:
+                if result.get("cameras_exported", 0) > 0:
                     self.log(f"  Cameras: {result['cameras_exported']}")
-                
+
                 QtWidgets.QMessageBox.information(
-                    self, "Export Complete",
-                    f"Layout exported!\n\nObjects: {result['object_count']}"
+                    self,
+                    "Export Complete",
+                    f"Layout exported!\n\nObjects: {result['object_count']}",
                 )
             else:
                 self.log(f"Export failed: {result.get('error')}")
-                
+
         except Exception as e:
             self.log(f"ERROR: {e}")
             import traceback
+
             self.log(traceback.format_exc())
 
     def on_import_layout(self):
         """Import USD layout from Unreal as USD Stage"""
         self.log("\n=== Starting Layout Import ===")
-        
+
         try:
             result = maya_layout_import.import_with_file_dialog()
-            
+
             if result["success"]:
                 self.log(f"Success! Created USD Stage")
                 self.log(f"  Stage: {result['stage_transform']}")
-                
-                QtWidgets.QMessageBox.information(
-                    self, "Import Complete",
-                    f"Layout imported as USD Stage!\n\n"
-                    f"Stage: {result['stage_transform']}\n\n"
-                )
+
             else:
                 if result.get("error") != "Cancelled":
                     self.log(f"Import failed: {result.get('error')}")
-                
+
         except Exception as e:
             self.log(f"ERROR: {e}")
             import traceback
+
             self.log(traceback.format_exc())
+
     # ========================================================================
     # HELPER FUNCTIONS
     # ========================================================================
@@ -366,7 +421,7 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         directory = cmds.fileDialog2(
             fileMode=3,
             caption="Select Asset Library Directory",
-            startingDirectory=self.asset_library_input.text()
+            startingDirectory=self.asset_library_input.text(),
         )
         if directory:
             self.asset_library_input.setText(directory[0])
@@ -378,7 +433,7 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         directory = cmds.fileDialog2(
             fileMode=3,
             caption="Select Layout Export Directory",
-            startingDirectory=self.layout_export_input.text()
+            startingDirectory=self.layout_export_input.text(),
         )
         if directory:
             self.layout_export_input.setText(directory[0])
@@ -389,24 +444,39 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         """Add message to status log"""
         timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         self.status_text.append(f"[{timestamp}] {message}")
+        
+    def sync_frame_range_from_timeline(self):
+        """Sync frame range spinboxes from Maya timeline"""
+        start = int(cmds.playbackOptions(query=True, minTime=True))
+        end = int(cmds.playbackOptions(query=True, maxTime=True))
+
+        self.start_frame_spin.setValue(start)
+        self.end_frame_spin.setValue(end)
+
+        # Only log if status_text exists (skip during initialization)
+        if hasattr(self, "status_text"):
+            self.log(f"Frame range synced from timeline: {start}-{end}")
+
 
 # ============================================================================
 # PUBLIC API
 # ============================================================================
 
+
 def show_ui():
     """Show the LayoutLink UI as a dockable window"""
-    
+
     # Delete existing instance
     workspace_control_name = LayoutLinkUI.WINDOW_OBJECT + "WorkspaceControl"
     if cmds.workspaceControl(workspace_control_name, exists=True):
         cmds.deleteUI(workspace_control_name)
-    
+
     # Create new instance
     ui = LayoutLinkUI()
     ui.show(dockable=True)
-    
+
     return ui
+
 
 # ============================================================================
 # AUTO-LAUNCH

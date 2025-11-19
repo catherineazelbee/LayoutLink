@@ -15,7 +15,7 @@ def _sanitize(name: str) -> str:
     return name
 
 
-def export_selected_to_usd(file_path: str, asset_library_dir: str):
+def export_selected_to_usd(file_path: str, asset_library_dir: str, start_frame=None, end_frame=None):
     unreal.log("=== Layout Export Starting ===")
     unreal.log(f"Layout file: {file_path}")
     unreal.log(f"Asset library: {asset_library_dir}")
@@ -26,11 +26,19 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str):
         unreal.log_warning("No actors selected")
         return {"success": False, "error": "No actors selected"}
     
-    # animation frame range
-    # TODO: For now, use a default range 
-    start_frame = 1
-    end_frame = 120  # Default to 120 frames (5 seconds @ 24fps)
-    fps = 24  # Standard film fps
+# animation frame range - use parameters or defaults
+    if start_frame is None:
+        start_frame = 1
+    if end_frame is None:
+        end_frame = 120
+    
+    # Validate frame range
+    if start_frame >= end_frame:
+        error_msg = f"Invalid frame range: start ({start_frame}) must be less than end ({end_frame})"
+        unreal.log_error(error_msg)
+        return {"success": False, "error": error_msg}
+    
+    fps = 24
     
     unreal.log(f"Animation range: {start_frame}-{end_frame} @ {fps}fps")
 
