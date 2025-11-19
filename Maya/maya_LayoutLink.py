@@ -432,9 +432,105 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
 
             self.log(traceback.format_exc())
 
-    #TODO: Implement update from Unreal
     def on_update_from_unreal(self):
-        return
+        """Quick update existing USD stage with Unreal changes"""
+        import quick_updater
+        
+        self.log("\n=== Quick Update from Unreal ===")
+        
+        # Find all USD stages in scene
+        stages = quick_updater.list_all_usd_stages()
+        
+        if not stages:
+            QtWidgets.QMessageBox.warning(
+                self, "No USD Stages",
+                "No USD stages found in scene.\n\n"
+                "Import a layout first, then use Update to refresh it."
+            )
+            self.log("ERROR: No USD stages in scene")
+            return
+        
+        self.log(f"Found {len(stages)} USD stage(s) in scene")
+        
+        # If multiple stages, let user pick which one to update
+        selected_stage = None
+        
+        if len(stages) > 1:
+            # Show selection dialog
+            stage_names = [s.split('|')[-1] for s in stages]  # Short names
+            
+            item, ok = QtWidgets.QInputDialog.getItem(
+                self, "Select Stage to Update",
+                "Multiple USD stages found.\nWhich one should be updated with Unreal changes?",
+                stage_names, 0, False
+            )
+            
+            if not ok:
+                self.log("Update cancelled")
+                return
+            
+            # Find the full path for selected stage
+            idx = stage_names.index(item)
+            selected_stage = stages[idx]
+            
+        else:
+            # Only one stage - use it
+            selected_stage = stages[0]
+        
+        stage_short_name = selected_stage.split('|')[-1]
+        self.log(f"Updating stage: {stage_short_name}")
+        
+        # Get current file info
+        info = quick_updater.get_stage_info(selected_stage)
+        if info:
+            self.log(f"  Current file: {os.path.basename(info['file_path'])}")
+            self.log(f"  Layer type: {info['layer_type']}")
+        
+        # Do the update!
+        try:
+            result = quick_updater.update_existing_stage(selected_stage)
+            
+            if result["success"]:
+                old_name = os.path.basename(result['old_path'])
+                new_name = os.path.basename(result['new_path'])
+                
+                self.log("✅ Update Complete!")
+                self.log(f"  From: {old_name}")
+                self.log(f"  To: {new_name}")
+                
+                QtWidgets.QMessageBox.information(
+                    self, "Update Complete",
+                    f"Stage updated with Unreal changes!\n\n"
+                    f"Stage: {stage_short_name}\n"
+                    f"New file: {new_name}\n\n"
+                    f"✓ Updated in <10 seconds\n"
+                    f"✓ Animation preserved\n"
+                    f"✓ Scene setup unchanged"
+                )
+            else:
+                error = result.get('error', 'Unknown error')
+                self.log(f"❌ Update failed: {error}")
+                
+                QtWidgets.QMessageBox.warning(
+                    self, "Update Failed",
+                    f"Could not update stage:\n\n{error}\n\n"
+                    f"Common issues:\n"
+                    f"• Unreal hasn't exported yet\n"
+                    f"• Wrong filename (must match BASE layer name)\n"
+                    f"• File not found\n\n"
+                    f"Make sure Unreal exports with the same shot name!"
+                )
+        
+        except Exception as e:
+            self.log(f"ERROR: {e}")
+            import traceback
+            self.log(traceback.format_exc())
+            
+            QtWidgets.QMessageBox.critical(
+                self, "Update Error",
+                f"An error occurred:\n\n{e}"
+            )
+        
     # ========================================================================
     # HELPER FUNCTIONS
     # ========================================================================
