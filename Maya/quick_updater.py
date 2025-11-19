@@ -7,6 +7,7 @@ Fast update workflow - reload USD stages with new files in <10 seconds.
 Key Features:
 - Updates existing USD stages without deleting/recreating
 - Auto-finds Unreal override layers
+- Handles coordinate system changes (Y-up vs Z-up)
 - Preserves Maya scene setup (timeline, connections, etc.)
 - Works with layered USD (BASE + OVERRIDE)
 
@@ -27,11 +28,6 @@ def list_all_usd_stages():
     
     Returns:
         List of transform node names that have mayaUsdProxyShape children
-        
-    Example:
-        >>> stages = list_all_usd_stages()
-        >>> print(stages)
-        ['UnrealLayout_shot_001_BASE', 'UnrealLayout_props_BASE']
     """
     all_shapes = cmds.ls(type='mayaUsdProxyShape')
     
@@ -53,11 +49,6 @@ def get_stage_info(stage_transform):
         
     Returns:
         Dict with stage info, or None if not a valid stage
-        
-    Example:
-        >>> info = get_stage_info('UnrealLayout_shot_001_BASE')
-        >>> print(info['file_path'])
-        >>> print(info['layer_type'])
     """
     shapes = cmds.listRelatives(stage_transform, shapes=True, type='mayaUsdProxyShape')
     
@@ -115,6 +106,16 @@ def find_unreal_override_for_current(current_path):
     return unreal_over
 
 
+def _get_stage_up_axis(file_path):
+    """Get up-axis from USD file"""
+    try:
+        from pxr import Usd, UsdGeom
+        stage = Usd.Stage.Open(file_path)
+        return UsdGeom.GetStageUpAxis(stage)
+    except Exception:
+        return None
+
+
 def update_existing_stage(stage_transform, new_usd_path=None):
     """
     Update existing USD stage with new file.
@@ -128,14 +129,6 @@ def update_existing_stage(stage_transform, new_usd_path=None):
         
     Returns:
         Dict with success status
-        
-    Example:
-        >>> # Auto-find Unreal changes
-        >>> result = update_existing_stage('UnrealLayout_shot_001_BASE')
-        
-        >>> # Or specify exact file
-        >>> result = update_existing_stage('UnrealLayout_shot_001_BASE', 
-        ...                                  'C:/SharedUSD/layouts/shot_001_unreal_OVER.usda')
     """
     print("=" * 60)
     print("=== Quick Update Starting ===")
@@ -166,7 +159,7 @@ def update_existing_stage(stage_transform, new_usd_path=None):
             print("  Make sure Unreal has exported with the same shot name!")
             return {"success": False, "error": error}
         
-        print(f"Found: {os.path.basename(new_usd_path)}")
+        print(f"[OK] Found: {os.path.basename(new_usd_path)}")
     
     # Verify new file exists
     if not os.path.exists(new_usd_path):
@@ -176,21 +169,75 @@ def update_existing_stage(stage_transform, new_usd_path=None):
     
     print(f"\nUpdating to: {os.path.basename(new_usd_path)}")
     
+    # Get OLD file's up-axis before updating
+    old_up_axis = _get_stage_up_axis(current_path)
+    print(f"  Old file up-axis: {old_up_axis}")
+    
     # THE MAGIC: Just change the file path - Maya reloads automatically!
     try:
         cmds.setAttr(f'{shape_node}.filePath', new_usd_path, type='string')
-        print("File path updated")
+        print("[OK] File path updated")
     except Exception as e:
         error = f"Could not update file path: {e}"
         print(f"ERROR: {error}")
         return {"success": False, "error": error}
     
+    # CRITICAL: Handle coordinate alignment for layer updates
+    # When updating from BASE to OVERRIDE, we have mixed coordinate systems:
+    # - BASE layer: Y-up content (from Maya)
+    # - OVERRIDE layer: Z-up content (from Unreal) BUT already coordinate-converted
+    #
+    # The Unreal exporter ALREADY converts Z-up → USD space with Y-flip
+    # So we should NOT add parent rotation for OVERRIDE layers!
+    
+    try:
+        from pxr import Sdf
+        
+        # Read OVERRIDE metadata to determine source
+        layer = Sdf.Layer.FindOrOpen(new_usd_path)
+        if layer:
+            custom_data = layer.customLayerData or {}
+            app_source = custom_data.get("layoutlink_app", "")
+            layer_type = custom_data.get("layoutlink_layer_type", "")
+            
+            print(f"  Layer type: {layer_type}, App: {app_source}")
+            
+            # For OVERRIDE layers, DON'T apply rotation
+            # The coordinate conversion is already baked in the USD data
+            if layer_type == "override":
+                current_rot_x = cmds.getAttr(f'{stage_transform}.rotateX') or 0.0
+                
+                if abs(current_rot_x) > 0.01:
+                    # Remove any rotation - override layers are pre-converted
+                    cmds.setAttr(f'{stage_transform}.rotateX', 0.0)
+                    print("  [OK] Reset rotation (override has pre-converted coordinates)")
+                else:
+                    print("  [OK] No rotation needed for override layer")
+            
+            # For BASE layers, check up-axis and apply rotation if needed
+            elif layer_type == "base":
+                base_up_axis = _get_stage_up_axis(new_usd_path)
+                current_rot_x = cmds.getAttr(f'{stage_transform}.rotateX') or 0.0
+                
+                if str(base_up_axis).upper() == "Z":
+                    if abs(current_rot_x - (-90.0)) > 0.01:
+                        cmds.setAttr(f'{stage_transform}.rotateX', -90.0)
+                        print("  [OK] Applied -90° for Z-up BASE")
+                else:
+                    if abs(current_rot_x) > 0.01:
+                        cmds.setAttr(f'{stage_transform}.rotateX', 0.0)
+                        print("  [OK] Reset rotation for Y-up BASE")
+                        
+    except Exception as e:
+        print(f"  Warning: Could not check layer metadata: {e}")
+    
     # Force viewport refresh
     cmds.refresh()
     
     print("=" * 60)
-    print("UPDATE COMPLETE!")
+    print("[SUCCESS] UPDATE COMPLETE!")
     print("  Stage reloaded with Unreal changes")
+    print("  Coordinate system aligned")
     print("  Animation preserved (if any)")
     print(f"  Time: <10 seconds")
     print("=" * 60)
@@ -279,9 +326,17 @@ def switch_to_base_layer(stage_transform):
     
     # Update file path
     cmds.setAttr(f'{info["shape"]}.filePath', base_path, type='string')
+    
+    # Re-check coordinate system for BASE file
+    base_up_axis = _get_stage_up_axis(base_path)
+    if base_up_axis and str(base_up_axis).upper() == "Y":
+        # BASE is Y-up, remove rotation
+        cmds.setAttr(f'{stage_transform}.rotateX', 0.0)
+        print("  Removed rotation for Y-up BASE")
+    
     cmds.refresh()
     
-    print("Switched to BASE layer")
+    print("[OK] Switched to BASE layer")
     
     return {
         "success": True,

@@ -26,18 +26,14 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str, start_frame=N
         unreal.log_warning("No actors selected")
         return {"success": False, "error": "No actors selected"}
     
-# animation frame range - use parameters or defaults
+    # animation frame range
+    # TODO: use a default range 
+    # animation frame range - use parameters or defaults
     if start_frame is None:
         start_frame = 1
     if end_frame is None:
         end_frame = 120
-    
-    # Validate frame range
-    if start_frame >= end_frame:
-        error_msg = f"Invalid frame range: start ({start_frame}) must be less than end ({end_frame})"
-        unreal.log_error(error_msg)
-        return {"success": False, "error": error_msg}
-    
+
     fps = 24
     
     unreal.log(f"Animation range: {start_frame}-{end_frame} @ {fps}fps")
@@ -83,6 +79,34 @@ def export_selected_to_usd(file_path: str, asset_library_dir: str, start_frame=N
         nice = _sanitize(label)
         unreal.log(f"Processing: {label}")
         cls_name = actor.get_class().get_name()
+        
+        # ====================================================================
+        # SPECIAL HANDLING: USD Stage Actor (imported from Maya)
+        # ====================================================================
+        if cls_name == "UsdStageActor":
+            unreal.log(f"  Detected USD Stage Actor (imported from Maya)")
+            
+            # Get the USD file it's displaying
+            root_layer = actor.get_editor_property("root_layer")
+            usd_file = root_layer.get("file_path", "") if root_layer else ""
+            
+            if usd_file:
+                unreal.log(f"  USD file: {os.path.basename(usd_file)}")
+                unreal.log("")
+                unreal.log("  ⚠ USD Stage Actors store changes IN the USD file itself")
+                unreal.log("  To export animation edits from Unreal:")
+                unreal.log("    1. Open: Window → Virtual Production → USD Stage")
+                unreal.log("    2. Make changes in Level Sequence")  
+                unreal.log("    3. Click: File → Save in USD Stage Editor")
+                unreal.log("    4. Changes are written to USD file")
+                unreal.log("    5. In Maya: Click 'Update from Unreal' to see changes")
+                unreal.log("")
+                unreal.log("  OR use native Unreal actors for Unreal-side edits")
+            else:
+                unreal.log_warning("  Could not read USD file path")
+            
+            continue
+        
         prim_path = f"/World/{nice}"
 
         # Get TRS from actor

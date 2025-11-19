@@ -363,7 +363,7 @@ def export_selected_to_usd(
         print("Creating Maya OVERRIDE layer...")
 
         # Create override layer (creates empty file with sublayer reference)
-        over_path = simple_layers.create_override_layer(base_path, "unreal")
+        over_path = simple_layers.create_override_layer(base_path, "maya")
 
         # Our export has the actual content - move it to override
         # (We have to move the content because we already exported to file_path)
