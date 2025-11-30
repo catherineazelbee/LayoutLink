@@ -1,6 +1,6 @@
 import maya.cmds as cmds
 import sys
-S
+
 # Delete existing workspace control
 if cmds.workspaceControl("LayoutLinkWindowWorkspaceControl", exists=True):
     cmds.deleteUI("LayoutLinkWindowWorkspaceControl")
