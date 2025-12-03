@@ -4,7 +4,7 @@ import sys
 # Delete existing workspace control
 if cmds.workspaceControl("LayoutLinkWindowWorkspaceControl", exists=True):
     cmds.deleteUI("LayoutLinkWindowWorkspaceControl")
-
+rrr
 # Clear module cache
 for mod in ['maya_LayoutLink', 'maya_mesh_export', 'maya_layout_export', 'maya_layout_import', 'maya_metadata_utils']:
     if mod in sys.modules:

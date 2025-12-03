@@ -112,7 +112,7 @@ void FLayoutLinkModule::LoadSettings()
 {
 	// Sensible defaults if missing
 	FString DefaultAsset = TEXT("C:/SharedUSD/assets/unreal");
-	FString DefaultLayouts = TEXT("C:/SharedUSD/layouts/unreal_layouts");
+	FString DefaultLayouts = TEXT("C:/SharedUSD/layouts");
 
 	GConfig->GetString(TEXT("/Script/LayoutLink"), TEXT("AssetLibraryPath"), AssetLibraryPath, GEditorPerProjectIni);
 	GConfig->GetString(TEXT("/Script/LayoutLink"), TEXT("LayoutExportDir"), LayoutExportDir, GEditorPerProjectIni);
