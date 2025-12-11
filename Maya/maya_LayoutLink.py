@@ -83,7 +83,7 @@ class LayoutLinkUI(MayaQWidgetDockableMixin, QtWidgets.QWidget):
         self.setLayout(main_layout)
 
         # Header
-        header = QtWidgets.QLabel("LayoutLink - Professional USD Pipeline")
+        header = QtWidgets.QLabel("LayoutLink")
         header.setStyleSheet("font-size: 14px; font-weight: bold; padding: 10px;")
         header.setAlignment(QtCore.Qt.AlignCenter)
         main_layout.addWidget(header)
