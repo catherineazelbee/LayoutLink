@@ -158,24 +158,13 @@ SharedUSD/
 
 ---
 
-## Development Timeline
-
-**Completed:**
+## Confirmed Functionality
 - ✅ Unreal C++ plugin with Slate UI
 - ✅ Custom mesh exporter
 - ✅ Layout export with USD composition
 - ✅ Metadata system
 - ✅ Coordinate system conversion
 - ✅ Camera export/import with full parameters
-
-**In Progress:**
-- 🔄 Layer-based system (BASE + OVER)
-- 🔄 Animation pipeline (stepped interpolation)
-- 🔄 Quick update workflow
-
-**Planned:**
-- ⏳ Conflict detection
-- ⏳ Payload support 
 
 ---
 
